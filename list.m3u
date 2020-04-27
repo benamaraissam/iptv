@@ -1,9 +1,2 @@
-#EXTM3U
-#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/nouba_2_sera_diffuse_gratuitement_sur_artify_tn_1587741587.jpg" group-title="Nouba 2",Episode 1
-http://videos.tunitv.net/nouba2/episode1.mp4
-#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/nouba_2_sera_diffuse_gratuitement_sur_artify_tn_1587741587.jpg" group-title="Nouba 2",Episode 2
-http://videos.tunitv.net/nouba2/episode2.mp4
-#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/nouba_2_sera_diffuse_gratuitement_sur_artify_tn_1587741587.jpg" group-title="Nouba 2",Episode 3
-http://videos.tunitv.net/nouba2/episode3.mp4
-#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/nouba_2_sera_diffuse_gratuitement_sur_artify_tn_1587741587.jpg" group-title="Awled Moufida",Awled Moufida Partie
-https://vk.com/video593980699_456239022
+#EXTINF:0 tvg-logo=""  group-title="Denya Okhra - Saison 4", Episode 1 Partie 2
+http://s824329663.onlinehome.fr/rf
