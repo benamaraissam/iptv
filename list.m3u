@@ -52,4 +52,16 @@ http://videos.tunitv.net/27/Episode4.mp4
 #EXTINF:-1 tvg-logo="https://cdn2.webmanagercenter.com/di/wp-content/uploads/2020/04/27_1.png" group-title="27",Episode 5
 http://videos.tunitv.net/27/Episode5.mp4
 
+#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 1
+http://videos.tunitv.net/kalbeldhib/Episode1.mp4
+#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 2
+http://videos.tunitv.net/kalbeldhib/Episode2.mp4
+#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 3
+http://videos.tunitv.net/kalbeldhib/Episode3.mp4
+#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 4
+http://videos.tunitv.net/kalbeldhib/Episode5.mp4
+#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 5
+http://videos.tunitv.net/kalbeldhib/Episode5.mp4
+
+
 
