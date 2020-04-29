@@ -42,6 +42,12 @@ http://videos.tunitv.net/awledmoufida/Episode 5 Partie 1.mp4
 http://videos.tunitv.net/awledmoufida/Episode 5 Partie 2.mp4
 #EXTINF:-1 tvg-logo="https://cdn2.webmanagercenter.com/di/wp-content/uploads/2016/06/Awledmoufida2.jpg" group-title="Awled Moufida 5",Episode 5 Partie 3
 http://videos.tunitv.net/awledmoufida/Episode 5 Partie 3.mp4
+#EXTINF:-1 tvg-logo="https://cdn2.webmanagercenter.com/di/wp-content/uploads/2016/06/Awledmoufida2.jpg" group-title="Awled Moufida 5",Episode 6 Partie 1
+http://videos.tunitv.net/awledmoufida/Episode 6 Partie 1.mp4
+#EXTINF:-1 tvg-logo="https://cdn2.webmanagercenter.com/di/wp-content/uploads/2016/06/Awledmoufida2.jpg" group-title="Awled Moufida 5",Episode 6 Partie 2
+http://videos.tunitv.net/awledmoufida/Episode 6 Partie 2.mp4
+#EXTINF:-1 tvg-logo="https://cdn2.webmanagercenter.com/di/wp-content/uploads/2016/06/Awledmoufida2.jpg" group-title="Awled Moufida 5",Episode 6 Partie 3
+http://videos.tunitv.net/awledmoufida/Episode 6 Partie 3.mp4
 
 #EXTINF:-1 tvg-logo="https://cdn2.webmanagercenter.com/di/wp-content/uploads/2020/04/27_1.png" group-title="27",Episode 1
 http://videos.tunitv.net/27/Episode1.mp4
@@ -53,6 +59,8 @@ http://videos.tunitv.net/27/Episode3.mp4
 http://videos.tunitv.net/27/Episode4.mp4
 #EXTINF:-1 tvg-logo="https://cdn2.webmanagercenter.com/di/wp-content/uploads/2020/04/27_1.png" group-title="27",Episode 5
 http://videos.tunitv.net/27/Episode5.mp4
+#EXTINF:-1 tvg-logo="https://cdn2.webmanagercenter.com/di/wp-content/uploads/2020/04/27_1.png" group-title="27",Episode 6
+http://videos.tunitv.net/27/Episode6.mp4
 
 #EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 1
 http://videos.tunitv.net/kalbeldhib/Episode1.mp4
@@ -62,8 +70,24 @@ http://videos.tunitv.net/kalbeldhib/Episode2.mp4
 http://videos.tunitv.net/kalbeldhib/Episode3.mp4
 #EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 4
 http://videos.tunitv.net/kalbeldhib/Episode5.mp4
-#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 5
-http://videos.tunitv.net/kalbeldhib/Episode5.mp4
+#EXTINF:-1 tvg-logo="https://content.mosaiquefm.net/uploads/content/thumbnails/1587993600_article.jpg" group-title="Kalb Eldhib",Episode 6
+http://videos.tunitv.net/kalbeldhib/Episode6.mp4
 
+#EXTINF:-1 tvg-logo="https://1.bp.blogspot.com/-TxeuWuwbTno/XqNwzBtMjzI/AAAAAAAAFfA/eRDWA8NpUUkipNosulUdEP8CfCrqH6WugCLcBGAsYHQ/s640/7ajer.png" group-title="El Harj El Sahi",Episode 1 Partie 1
+http://videos.tunitv.net/elhajrelsahi/Episode 1 Partie 1.mp4
+#EXTINF:-1 tvg-logo="https://1.bp.blogspot.com/-TxeuWuwbTno/XqNwzBtMjzI/AAAAAAAAFfA/eRDWA8NpUUkipNosulUdEP8CfCrqH6WugCLcBGAsYHQ/s640/7ajer.png" group-title="El Harj El Sahi",Episode 1 Partie 1
+http://videos.tunitv.net/elhajrelsahi/Episode 1 Partie 2.mp4
+#EXTINF:-1 tvg-logo="https://1.bp.blogspot.com/-TxeuWuwbTno/XqNwzBtMjzI/AAAAAAAAFfA/eRDWA8NpUUkipNosulUdEP8CfCrqH6WugCLcBGAsYHQ/s640/7ajer.png" group-title="El Harj El Sahi",Episode 1 Partie 1
+http://videos.tunitv.net/elhajrelsahi/Episode 1 Partie 2.mp4
+#EXTINF:-1 tvg-logo="https://1.bp.blogspot.com/-TxeuWuwbTno/XqNwzBtMjzI/AAAAAAAAFfA/eRDWA8NpUUkipNosulUdEP8CfCrqH6WugCLcBGAsYHQ/s640/7ajer.png" group-title="El Harj El Sahi",Episode 2
+http://videos.tunitv.net/elhajrelsahi/Episode2.mp4
+#EXTINF:-1 tvg-logo="https://1.bp.blogspot.com/-TxeuWuwbTno/XqNwzBtMjzI/AAAAAAAAFfA/eRDWA8NpUUkipNosulUdEP8CfCrqH6WugCLcBGAsYHQ/s640/7ajer.png" group-title="El Harj El Sahi",Episode 3
+http://videos.tunitv.net/elhajrelsahi/Episode3.mp4
+#EXTINF:-1 tvg-logo="https://1.bp.blogspot.com/-TxeuWuwbTno/XqNwzBtMjzI/AAAAAAAAFfA/eRDWA8NpUUkipNosulUdEP8CfCrqH6WugCLcBGAsYHQ/s640/7ajer.png" group-title="El Harj El Sahi",Episode 4
+http://videos.tunitv.net/elhajrelsahi/Episode4.mp4
+#EXTINF:-1 tvg-logo="https://1.bp.blogspot.com/-TxeuWuwbTno/XqNwzBtMjzI/AAAAAAAAFfA/eRDWA8NpUUkipNosulUdEP8CfCrqH6WugCLcBGAsYHQ/s640/7ajer.png" group-title="El Harj El Sahi",Episode 5
+http://videos.tunitv.net/elhajrelsahi/Episode5.mp4
+#EXTINF:-1 tvg-logo="https://1.bp.blogspot.com/-TxeuWuwbTno/XqNwzBtMjzI/AAAAAAAAFfA/eRDWA8NpUUkipNosulUdEP8CfCrqH6WugCLcBGAsYHQ/s640/7ajer.png" group-title="El Harj El Sahi",Episode 6
+http://videos.tunitv.net/elhajrelsahi/Episode6.mp4
 
 
