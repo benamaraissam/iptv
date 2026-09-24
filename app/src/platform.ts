@@ -11,6 +11,7 @@ declare global {
 }
 
 function detect(): PlatformName {
+  if (typeof window === 'undefined') return 'web'; // tests (Node)
   if (typeof window.tizen !== 'undefined') return 'tizen';
   if (typeof window.webOS !== 'undefined' || typeof window.PalmSystem !== 'undefined') return 'webos';
   if (Capacitor.isNativePlatform()) {

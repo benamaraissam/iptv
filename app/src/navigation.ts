@@ -1,20 +1,28 @@
 /**
  * Navigation spatiale pour télécommande (flèches + OK).
- * Tout élément portant la classe `focusable` est atteignable ; on choisit
- * le voisin le plus proche dans la direction demandée.
+ * Tout élément visible portant la classe `focusable` est atteignable ;
+ * on choisit le voisin le plus proche dans la direction demandée.
  */
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
 let root: HTMLElement = document.body;
 
-/** Limite la navigation à un conteneur (écran courant ou modale). */
-export function setNavRoot(el: HTMLElement): void {
-  root = el;
+/** Limite la navigation à un conteneur (modale ouverte, par exemple). */
+export function setNavRoot(el: HTMLElement | null): void {
+  root = el || document.body;
+}
+
+export function getNavRoot(): HTMLElement {
+  return root;
 }
 
 function visible(el: HTMLElement): boolean {
+  if ((el as HTMLButtonElement).disabled) return false;
   const r = el.getBoundingClientRect();
-  return r.width > 0 && r.height > 0 && !(el as HTMLButtonElement).disabled;
+  if (r.width === 0 || r.height === 0) return false;
+  // Hors de l'écran horizontalement ET verticalement dans un conteneur caché : on garde,
+  // les rails défilants doivent rester atteignables.
+  return true;
 }
 
 export function focusables(scope: HTMLElement = root): HTMLElement[] {
@@ -24,44 +32,48 @@ export function focusables(scope: HTMLElement = root): HTMLElement[] {
   return out;
 }
 
-export function focusEl(el: HTMLElement | null | undefined): void {
-  if (!el) return;
-  el.focus({ preventScroll: true });
-  // scrollIntoView avec options n'existe pas sur les vieux Chromium des TV.
-  const container = scrollParent(el);
-  if (container) {
-    const r = el.getBoundingClientRect();
-    const c = container.getBoundingClientRect();
-    const margin = 24;
-    if (r.top < c.top + margin) container.scrollTop -= c.top + margin - r.top;
-    else if (r.bottom > c.bottom - margin) container.scrollTop += r.bottom - (c.bottom - margin);
+export function focusEl(el: HTMLElement | null | undefined): boolean {
+  if (!el) return false;
+  try {
+    el.focus({ preventScroll: true });
+  } catch {
+    el.focus();
   }
+  revealEl(el);
+  return true;
 }
 
-function scrollParent(el: HTMLElement): HTMLElement | null {
+/** Fait défiler chaque conteneur parent pour montrer l'élément (sans scrollIntoView options). */
+export function revealEl(el: HTMLElement): void {
+  const margin = 32;
   let p = el.parentElement;
   while (p && p !== document.body) {
-    const oy = getComputedStyle(p).overflowY;
-    if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+    const cs = getComputedStyle(p);
+    const r = el.getBoundingClientRect();
+    const c = p.getBoundingClientRect();
+    if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && p.scrollHeight > p.clientHeight) {
+      if (r.top < c.top + margin) p.scrollTop -= c.top + margin - r.top;
+      else if (r.bottom > c.bottom - margin) p.scrollTop += r.bottom - (c.bottom - margin);
+    }
+    if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && p.scrollWidth > p.clientWidth) {
+      if (r.left < c.left + margin) p.scrollLeft -= c.left + margin - r.left;
+      else if (r.right > c.right - margin) p.scrollLeft += r.right - (c.right - margin);
+    }
     p = p.parentElement;
   }
-  return null;
 }
 
-/** Donne le focus au premier élément `[data-autofocus]`, sinon au premier focusable. */
-export function focusFirst(scope: HTMLElement = root): void {
+/** Donne le focus à `[data-autofocus]`, sinon au premier focusable. */
+export function focusFirst(scope: HTMLElement = root): boolean {
   const auto = scope.querySelector<HTMLElement>('[data-autofocus]');
   if (auto && visible(auto)) return focusEl(auto);
-  focusEl(focusables(scope)[0]);
+  return focusEl(focusables(scope)[0]);
 }
 
-export function move(dir: Direction): boolean {
+export function move(dir: Direction, scope: HTMLElement = root): boolean {
   const current = document.activeElement as HTMLElement | null;
-  const items = focusables();
-  if (!current || items.indexOf(current) === -1) {
-    focusEl(items[0]);
-    return true;
-  }
+  const items = focusables(scope);
+  if (!current || items.indexOf(current) === -1) return focusEl(items[0]);
 
   const from = current.getBoundingClientRect();
   const fx = from.left + from.width / 2;
@@ -78,24 +90,24 @@ export function move(dir: Direction): boolean {
     let secondary: number;
     switch (dir) {
       case 'left':
+        if (cx >= fx - 1 || r.left >= from.left) continue;
         primary = from.left - r.right;
-        secondary = Math.abs(cy - fy);
-        if (cx >= fx) continue;
+        secondary = overlap(from.top, from.bottom, r.top, r.bottom) ? 0 : Math.abs(cy - fy);
         break;
       case 'right':
+        if (cx <= fx + 1 || r.right <= from.right) continue;
         primary = r.left - from.right;
-        secondary = Math.abs(cy - fy);
-        if (cx <= fx) continue;
+        secondary = overlap(from.top, from.bottom, r.top, r.bottom) ? 0 : Math.abs(cy - fy);
         break;
       case 'up':
+        if (cy >= fy - 1 || r.top >= from.top) continue;
         primary = from.top - r.bottom;
-        secondary = Math.abs(cx - fx);
-        if (cy >= fy) continue;
+        secondary = overlap(from.left, from.right, r.left, r.right) ? Math.abs(r.left - from.left) / 4 : Math.abs(cx - fx);
         break;
       default:
+        if (cy <= fy + 1 || r.bottom <= from.bottom) continue;
         primary = r.top - from.bottom;
-        secondary = Math.abs(cx - fx);
-        if (cy <= fy) continue;
+        secondary = overlap(from.left, from.right, r.left, r.right) ? Math.abs(r.left - from.left) / 4 : Math.abs(cx - fx);
     }
     const score = Math.max(primary, 0) + secondary * 2;
     if (score < bestScore) {
@@ -103,9 +115,9 @@ export function move(dir: Direction): boolean {
       best = el;
     }
   }
-  if (best) {
-    focusEl(best);
-    return true;
-  }
-  return false;
+  return focusEl(best);
+}
+
+function overlap(a1: number, a2: number, b1: number, b2: number): boolean {
+  return Math.min(a2, b2) - Math.max(a1, b1) > 4;
 }

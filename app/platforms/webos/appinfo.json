@@ -1,13 +1,13 @@
 {
-  "id": "com.iptvplayer.app",
+  "id": "com.streampro.app",
   "version": "1.0.0",
-  "vendor": "IPTV Player",
+  "vendor": "StreamPro",
   "type": "web",
   "main": "index.html",
-  "title": "IPTV Player",
+  "title": "StreamPro",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
-  "bgColor": "#0b0f1a",
+  "bgColor": "#060a1c",
   "resolution": "1920x1080",
   "disableBackHistoryAPI": true,
   "requiredMemory": 200

@@ -24,5 +24,6 @@ export default defineConfig({
     assetsInlineLimit: 0,
     // hls.js (~640 ko) est chargé à la demande, seulement quand le HLS natif manque.
     chunkSizeWarningLimit: 800,
+    cssTarget: 'chrome38',
   },
 });

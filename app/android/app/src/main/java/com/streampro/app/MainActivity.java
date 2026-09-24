@@ -1,4 +1,4 @@
-package com.iptvplayer.app;
+package com.streampro.app;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.iptvplayer.app',
-  appName: 'IPTV Player',
+  appId: 'com.streampro.app',
+  appName: 'StreamPro',
   webDir: 'dist',
   server: {
     // Beaucoup de flux IPTV sont servis en HTTP : on autorise le contenu mixte.

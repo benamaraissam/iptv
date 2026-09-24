@@ -1,28 +1,55 @@
-# IPTV Player — Android · iOS · Samsung (Tizen) · LG (webOS)
+# StreamPro — IPTV Next Generation
 
-Un lecteur IPTV unique, écrit une seule fois en TypeScript, et packagé pour :
+Lecteur IPTV au design **StreamPro**, écrit une seule fois en TypeScript et packagé pour :
 
-| Plateforme | Technologie | Format livré |
+| Plateforme | Technologie | Format livré | Interface |
+|---|---|---|---|
+| Android (téléphone, tablette, **Android TV**) | Capacitor | `.apk` / `.aab` | onglets en bas / barre latérale en paysage |
+| iOS / iPadOS | Capacitor | App Store / TestFlight | onglets en bas |
+| TV Samsung (Tizen 3.0+, 2017+) | Web-app Tizen | `.wgt` | barre latérale + télécommande |
+| TV LG (webOS 3.0+, 2016+) | Web-app webOS | `.ipk` | barre latérale + télécommande |
+
+> StreamPro est un **lecteur** : il ne fournit aucun contenu. L'utilisateur se connecte
+> à son propre fournisseur IPTV (compte **Xtream Codes** ou lien **M3U**).
+
+## Écrans (d'après la maquette)
+
+| Maquette | Écran | Remarque |
 |---|---|---|
-| Android (téléphone, tablette, **Android TV**) | Capacitor | `.apk` / `.aab` |
-| iOS / iPadOS | Capacitor | App Store / TestFlight |
-| TV Samsung (Tizen 3.0+, 2017+) | Web-app Tizen | `.wgt` |
-| TV LG (webOS 3.0+, 2016+) | Web-app webOS | `.ipk` |
+| 1 | Splash | logo, slogan, barre de chargement |
+| 2 | Connexion | identifiants Xtream Codes ou lien M3U (+ playlist d'exemple) |
+| 5-7 | Onboarding | 3 étapes, affiché au premier lancement |
+| 8 / 12 | Accueil | mise en avant, Continuer à regarder, Catégories, Recommandé, Ajouts récents, TV |
+| 9 / 13 | TV en direct | liste (mobile) ou grille numérotée (TV), filtres, favoris ♡, programme en cours |
+| 10 / 14 | Guide TV | grille horaire sur 4 jours, ligne « maintenant », fiche programme, replay |
+| 11 | Recherche | films / séries / chaînes, recherches récentes, À découvrir |
+| 15 / 19 | Fiche détail | visuel, infos, synopsis, Lecture/Reprendre, Ma liste, saisons & épisodes, distribution |
+| 16 | Catégories | tuiles colorées + catégories de chaînes |
+| 17 / 18 | Films / Séries | grille d'affiches, Populaires, Nouveautés, genres |
+| 20 | Lecteur | barre de progression, ⏮ ⏯ ⏭, épisodes/chaînes, audio, sous-titres, qualité |
+| 21 / 22 | Bibliothèque | Ma liste (films/séries/chaînes), Continuer à regarder, Historique |
+| 23 | Replay | chaînes avec archive → programmes passés rejouables |
+| — | Profil, Paramètres, Contrôle parental, Connexions, Playlists | voir ci-dessous |
+| — | États vides / Pas de connexion / Aucun résultat | partout |
 
-> L'application est un **lecteur** : elle ne fournit aucun contenu. L'utilisateur
-> ajoute ses propres playlists (lien M3U ou compte Xtream Codes).
+**Écarts volontaires avec la maquette** : *Créer un compte*, *Mot de passe oublié*, *Offres Premium*
+et la connexion Apple/Google supposent un serveur de comptes et de paiement StreamPro qui n'existe pas.
+La connexion se fait donc avec les identifiants du fournisseur IPTV, et l'écran *Appareils connectés*
+affiche les vraies données du compte Xtream (connexions actives / maximum, date d'expiration).
 
 ## Fonctionnalités
 
-- Ajout de playlists **M3U / M3U8** (URL) ou **Xtream Codes** (serveur + identifiants)
-- Catégories (`group-title`), recherche, onglets TV en direct / Films / Séries
-- **Favoris** (touche jaune de la télécommande, clic droit / appui long sur mobile) et **Récents**
-- Lecteur plein écran : HLS natif (iOS, Tizen, webOS) ou **hls.js** (Android, navigateurs)
-- Zapping ▲▼ / CH+ CH−, saisie du numéro de chaîne au pavé numérique, pause/lecture
-- **Navigation à la télécommande** (flèches, OK, Retour, touches média et couleur) et interface tactile
-- Mise en cache locale de la playlist (rechargement via ⟳)
-- Bundle compatible avec les vieux moteurs des TV (ES5 + polyfills, pas de CSS Grid/variables)
-- Bouton « Essayer avec la playlist d'exemple » qui charge `list.m3u` de ce dépôt
+- **Xtream Codes** : chaînes, films, séries (saisons/épisodes), fiches (synopsis, note, casting),
+  guide TV, **replay** (timeshift), état du compte.
+- **M3U** : catégories `group-title`, logos, guide **XMLTV** (`url-tvg`), séries reconstituées à partir
+  des groupes « Nom - Saison N ».
+- **Reprise de lecture** des films et épisodes, épisode suivant automatique, historique.
+- **Ma liste** (♡, touche jaune sur TV), recherches récentes.
+- **Contrôle parental** : code PIN, verrouillage des contenus adultes et de catégories au choix.
+- **Paramètres** : langue (FR/EN, par défaut celle de l'appareil), qualité vidéo, lecture auto.
+- **Plusieurs playlists**, bascule depuis le profil.
+- **Télécommande** : navigation spatiale, Retour, CH+/CH−, chiffres (n° de chaîne), Play/Pause, touches couleur.
+- Compatible vieux moteurs TV : bundle ES5 + polyfills, CSS sans Grid/`gap`/variables à l'exécution.
 
 ## Démarrage
 
@@ -30,7 +57,7 @@ Un lecteur IPTV unique, écrit une seule fois en TypeScript, et packagé pour :
 cd app
 npm install
 npm run dev        # http://localhost:5173 — flèches/Entrée/Échap simulent la télécommande
-npm test           # tests du parseur M3U
+npm test           # tests unitaires (M3U, séries, XMLTV)
 npm run build      # build de production dans dist/
 ```
 
@@ -45,10 +72,8 @@ Prérequis : Android Studio.
 npm run cap:android   # build + sync + ouvre Android Studio
 ```
 
-Puis *Run* sur un appareil/émulateur, ou *Build › Generate Signed Bundle* pour le Play Store.
-Le manifeste autorise déjà les flux HTTP (`usesCleartextTraffic`) et déclare la
-compatibilité **Android TV** (`LEANBACK_LAUNCHER`). Pour Android TV, remplacez la bannière
-par une image 320×180 dans `android/app/src/main/res/mipmap-*/`.
+Identifiant : `com.streampro.app`. Le manifeste autorise les flux HTTP et déclare
+la compatibilité **Android TV** (bannière `res/drawable/banner.png`).
 
 ## iOS
 
@@ -58,77 +83,62 @@ Prérequis : un Mac avec Xcode.
 npm run cap:ios       # build + sync + ouvre Xcode
 ```
 
-Choisissez votre *Team* de signature puis lancez. `Info.plist` autorise déjà les flux HTTP
-(`NSAllowsArbitraryLoads`) — Apple peut demander une justification lors de la revue.
+`Info.plist` autorise les flux HTTP (`NSAllowsArbitraryLoads`) — Apple peut demander une justification.
+
+Icônes et splash natifs : régénérés depuis `resources/icon.png` avec
+`npx @capacitor/assets generate --iconBackgroundColor '#060a1c' --splashBackgroundColor '#060a1c'`.
 
 ## Samsung TV (Tizen)
 
-Prérequis : [Tizen Studio](https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html)
-avec l'extension TV et un **certificat Samsung** (Certificate Manager).
+Prérequis : Tizen Studio (extension TV) et un **certificat Samsung**.
 
 ```bash
 npm run build:tizen                      # → build/tizen/ (+ .wgt si le CLI `tizen` est dans le PATH)
 TIZEN_PROFILE=monProfil npm run build:tizen
+sdb connect <IP_TV> && tizen install -n build/StreamPro.wgt -t <nom_de_la_tv>
 ```
-
-Installation sur la TV (mode développeur activé, IP du PC renseignée) :
-
-```bash
-sdb connect <IP_TV>
-tizen install -n build/IPTVPlayer.wgt -t <nom_de_la_tv>
-```
-
-Configuration : `platforms/tizen/config.xml` (identifiant, privilèges, `access origin="*"`).
 
 ## LG TV (webOS)
 
-Prérequis : `npm i -g @webos-tools/cli` et l'app **Developer Mode** installée sur la TV.
+Prérequis : `npm i -g @webos-tools/cli` et l'app **Developer Mode** sur la TV.
 
 ```bash
-npm run build:webos                      # → build/webos/ + .ipk
-ares-setup-device                        # déclarer la TV (IP, passphrase du Developer Mode)
-ares-install -d maTV build/com.iptvplayer.app_1.0.0_all.ipk
-ares-launch  -d maTV com.iptvplayer.app
+npm run build:webos
+ares-setup-device
+ares-install -d maTV build/com.streampro.app_1.0.0_all.ipk
 ```
-
-Configuration : `platforms/webos/appinfo.json`.
 
 ## Architecture
 
 ```
-app/
-├── src/
-│   ├── main.ts          point d'entrée
-│   ├── app.ts           écrans : accueil, ajout de playlist, catalogue, lecteur
-│   ├── m3u.ts           parseur M3U (+ tests)
-│   ├── xtream.ts        API Xtream Codes (player_api.php)
-│   ├── player.ts        lecture (HLS natif ou hls.js chargé à la demande)
-│   ├── navigation.ts    navigation spatiale à la télécommande
-│   ├── platform.ts      détection Tizen/webOS/Android/iOS, codes touches
-│   ├── http.ts          requêtes (HTTP natif Capacitor sur mobile → pas de CORS)
-│   ├── storage.ts       playlists, favoris, récents, cache (localStorage)
-│   └── styles.css
-├── platforms/tizen/     config.xml + icône
-├── platforms/webos/     appinfo.json + icônes
-├── android/  ios/       projets natifs Capacitor
-└── scripts/package-tv.mjs
+app/src/
+├── main.ts / app.ts      démarrage, routeur, barre latérale / onglets, télécommande
+├── screens/              un fichier par groupe d'écrans (home, live, guide, vod, detail, player…)
+├── ui/                   composants (cartes, rangées, puces, réglages, modales, PIN), icônes
+├── catalog.ts            catalogue unifié M3U / Xtream (+ cache)
+├── xtream.ts             API player_api.php (live, VOD, séries, EPG, replay, compte)
+├── m3u.ts / epg.ts       parseurs M3U et XMLTV, programmes en cours
+├── player.ts             moteur vidéo : HLS natif ou hls.js, pistes audio/sous-titres/qualité
+├── navigation.ts         navigation spatiale
+├── storage.ts            réglages, playlists, Ma liste, historique, contrôle parental
+├── i18n.ts               textes FR / EN
+└── styles.css            design system StreamPro
 ```
 
 ### Touches de la télécommande
 
-| Touche | Catalogue | Lecteur |
+| Touche | Navigation | Lecteur |
 |---|---|---|
-| Flèches | déplacer le focus | ▲▼ changer de chaîne, ◀▶ boutons |
+| Flèches | déplacer le focus (◀ au bord → menu latéral) | ▲▼ zapper (direct), ◀▶ ±10 s (VOD) |
 | OK | ouvrir | afficher les contrôles / activer |
-| Retour | écran précédent / quitter | revenir au catalogue |
-| CH+ / CH− | — | chaîne suivante / précédente |
+| Retour | écran précédent / quitter | revenir |
+| CH+ / CH− | — | élément suivant / précédent |
 | 0–9 | — | aller au numéro de chaîne |
-| Jaune | favori | favori |
-| Play/Pause | — | pause / lecture |
+| Jaune | ajouter à Ma liste | — |
+| Play/Pause, Stop | — | pause / lecture, quitter |
 
-## Pistes d'évolution
+## Limites connues
 
-- Guide des programmes (EPG XMLTV via `tvg-id`)
-- Séries Xtream (`get_series` / `get_series_info`)
-- Lecteur natif (ExoPlayer / AVPlay Samsung) pour les flux MPEG-TS bruts non lus par la WebView
-- Contrôle parental (code PIN par catégorie)
+- Android : la WebView ne lit pas les flux MPEG-TS bruts (`.ts`) ; un lecteur natif (ExoPlayer)
+  serait nécessaire pour ces flux.
+- Guides XMLTV compressés (`.gz`) non pris en charge.

@@ -1,58 +1,89 @@
 import type Hls from 'hls.js';
 
+export interface Track {
+  id: string;
+  label: string;
+}
+
 /**
  * Lecture vidéo :
  * - iOS/Safari, Tizen et webOS lisent le HLS nativement dans <video>.
- * - Android WebView / Chrome desktop passent par hls.js (Media Source Extensions).
+ * - Android WebView / Chrome passent par hls.js (Media Source Extensions).
  * - Les autres formats (MP4, MKV...) sont confiés directement à <video>.
  */
-export class Player {
+export class Engine {
+  readonly video: HTMLVideoElement;
   private hls: Hls | null = null;
   private loadToken = 0;
+  onError: (kind: 'network' | 'format' | 'other', detail?: string) => void = () => undefined;
+  onTracks: () => void = () => undefined;
+  quality: 'auto' | 'high' | 'low' = 'auto';
 
-  constructor(
-    readonly video: HTMLVideoElement,
-    private onError: (message: string) => void,
-  ) {
-    video.setAttribute('playsinline', '');
-    video.setAttribute('webkit-playsinline', '');
-    video.addEventListener('error', () => {
-      const err = video.error;
-      if (err) this.onError(describeMediaError(err.code));
+  constructor() {
+    const v = document.createElement('video');
+    v.id = 'video';
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+    v.preload = 'auto';
+    v.addEventListener('error', () => {
+      const err = v.error;
+      if (!err || !v.getAttribute('src')) return;
+      this.onError(err.code === 2 ? 'network' : err.code === 4 || err.code === 3 ? 'format' : 'other');
     });
+    v.addEventListener('loadedmetadata', () => this.onTracks());
+    this.video = v;
   }
 
-  async load(url: string): Promise<void> {
+  async load(url: string, startAt = 0): Promise<void> {
     const token = ++this.loadToken;
     this.stop();
+    const v = this.video;
 
-    const isHls = /\.m3u8?(\?|$)/i.test(url) || url.indexOf('/live/') !== -1;
-    const nativeHls = this.video.canPlayType('application/vnd.apple.mpegurl') !== '';
+    const isHls = /\.m3u8?(\?|$)/i.test(url);
+    const nativeHls = v.canPlayType('application/vnd.apple.mpegurl') !== '';
+    const seek = () => {
+      if (startAt > 0) {
+        try {
+          v.currentTime = startAt;
+        } catch {
+          /* ignore */
+        }
+      }
+    };
 
     if (isHls && !nativeHls) {
       const { default: HlsCtor } = await import('hls.js');
-      if (token !== this.loadToken) return; // une autre chaîne a été demandée entre-temps
+      if (token !== this.loadToken) return;
       if (HlsCtor.isSupported()) {
-        const hls = new HlsCtor({ enableWorker: true, lowLatencyMode: true, backBufferLength: 30 });
+        const hls = new HlsCtor({
+          enableWorker: true,
+          backBufferLength: 30,
+          startPosition: startAt > 0 ? startAt : -1,
+          capLevelToPlayerSize: this.quality === 'auto',
+        });
         this.hls = hls;
+        let mediaRecoveries = 0;
         hls.on(HlsCtor.Events.ERROR, (_evt, data) => {
           if (!data.fatal) return;
-          if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
-            this.onError('Flux injoignable (réseau ou serveur).');
-          } else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
-          } else {
-            this.onError('Lecture impossible : ' + data.details);
-          }
+          if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) this.onError('network');
+          else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR && mediaRecoveries++ < 2) hls.recoverMediaError();
+          else this.onError('other', data.details);
         });
+        hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
+          this.applyQuality();
+          this.onTracks();
+          this.play();
+        });
+        hls.on(HlsCtor.Events.AUDIO_TRACKS_UPDATED, () => this.onTracks());
+        hls.on(HlsCtor.Events.SUBTITLE_TRACKS_UPDATED, () => this.onTracks());
         hls.loadSource(url);
-        hls.attachMedia(this.video);
-        hls.on(HlsCtor.Events.MANIFEST_PARSED, () => this.play());
+        hls.attachMedia(v);
         return;
       }
     }
 
-    this.video.src = url;
+    v.src = url;
+    if (startAt > 0) v.addEventListener('loadedmetadata', seek, { once: true } as any);
     this.play();
   }
 
@@ -67,32 +98,108 @@ export class Player {
     return this.video.paused;
   }
 
+  seekBy(delta: number): void {
+    const v = this.video;
+    if (!isFinite(v.duration)) return;
+    v.currentTime = Math.max(0, Math.min(v.duration - 1, v.currentTime + delta));
+  }
+
   stop(): void {
     if (this.hls) {
       this.hls.destroy();
       this.hls = null;
     }
-    this.video.pause();
-    this.video.removeAttribute('src');
+    const v = this.video;
+    v.pause();
+    v.removeAttribute('src');
     try {
-      this.video.load();
+      v.load();
     } catch {
       /* ignore */
     }
   }
-}
 
-function describeMediaError(code: number): string {
-  switch (code) {
-    case 1:
-      return 'Lecture interrompue.';
-    case 2:
-      return 'Erreur réseau pendant la lecture.';
-    case 3:
-      return 'Le flux ne peut pas être décodé.';
-    case 4:
-      return 'Format de flux non supporté sur cet appareil.';
-    default:
-      return 'Erreur de lecture.';
+  // ───────────── Pistes ─────────────
+
+  audioTracks(): { list: Track[]; current: string } {
+    if (this.hls) {
+      return {
+        list: this.hls.audioTracks.map((a, i) => ({ id: String(i), label: a.name || a.lang || 'Audio ' + (i + 1) })),
+        current: String(this.hls.audioTrack),
+      };
+    }
+    const at = (this.video as any).audioTracks;
+    const list: Track[] = [];
+    let current = '0';
+    if (at) {
+      for (let i = 0; i < at.length; i++) {
+        list.push({ id: String(i), label: at[i].label || at[i].language || 'Audio ' + (i + 1) });
+        if (at[i].enabled) current = String(i);
+      }
+    }
+    return { list, current };
+  }
+
+  setAudio(id: string): void {
+    const i = parseInt(id, 10);
+    if (this.hls) {
+      this.hls.audioTrack = i;
+      return;
+    }
+    const at = (this.video as any).audioTracks;
+    if (at) for (let k = 0; k < at.length; k++) at[k].enabled = k === i;
+  }
+
+  subtitleTracks(): { list: Track[]; current: string } {
+    if (this.hls) {
+      return {
+        list: this.hls.subtitleTracks.map((s, i) => ({ id: String(i), label: s.name || s.lang || 'Sub ' + (i + 1) })),
+        current: this.hls.subtitleDisplay ? String(this.hls.subtitleTrack) : '-1',
+      };
+    }
+    const tt = this.video.textTracks;
+    const list: Track[] = [];
+    let current = '-1';
+    for (let i = 0; i < tt.length; i++) {
+      if (tt[i].kind !== 'subtitles' && tt[i].kind !== 'captions') continue;
+      list.push({ id: String(i), label: tt[i].label || tt[i].language || 'Sub ' + (i + 1) });
+      if (tt[i].mode === 'showing') current = String(i);
+    }
+    return { list, current };
+  }
+
+  setSubtitle(id: string): void {
+    const i = parseInt(id, 10);
+    if (this.hls) {
+      this.hls.subtitleTrack = i;
+      this.hls.subtitleDisplay = i >= 0;
+      return;
+    }
+    const tt = this.video.textTracks;
+    for (let k = 0; k < tt.length; k++) tt[k].mode = k === i ? 'showing' : 'disabled';
+  }
+
+  levels(): { list: Track[]; current: string } {
+    if (!this.hls) return { list: [], current: '-1' };
+    return {
+      list: this.hls.levels.map((l, i) => ({ id: String(i), label: (l.height ? l.height + 'p' : Math.round(l.bitrate / 1000) + ' kbps') })),
+      current: this.hls.autoLevelEnabled ? '-1' : String(this.hls.currentLevel),
+    };
+  }
+
+  setLevel(id: string): void {
+    if (this.hls) this.hls.currentLevel = parseInt(id, 10);
+  }
+
+  /** Réglage global « Qualité vidéo » : max = niveau le plus haut, économie = le plus bas. */
+  private applyQuality(): void {
+    const hls = this.hls;
+    if (!hls || !hls.levels.length) return;
+    if (this.quality === 'high') hls.currentLevel = hls.levels.length - 1;
+    else if (this.quality === 'low') hls.currentLevel = 0;
+  }
+
+  get isLiveStream(): boolean {
+    return !isFinite(this.video.duration);
   }
 }

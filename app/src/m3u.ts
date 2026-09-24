@@ -78,6 +78,14 @@ export function parseM3U(text: string): Channel[] {
   return channels;
 }
 
+/** URL du guide XMLTV déclarée dans l'en-tête (#EXTM3U url-tvg="..."). */
+export function parseEpgUrl(text: string): string | undefined {
+  const firstLine = text.slice(0, 2000).split(/\r?\n/)[0] || '';
+  if (firstLine.indexOf('#EXTM3U') === -1) return undefined;
+  const m = /(?:url-tvg|x-tvg-url)="([^"]+)"/i.exec(firstLine);
+  return m ? m[1].split(',')[0].trim() : undefined;
+}
+
 /** Regroupe les chaînes par catégorie, en conservant l'ordre d'apparition. */
 export function groupChannels(channels: Channel[]): Map<string, Channel[]> {
   const groups = new Map<string, Channel[]>();
