@@ -1,0 +1,34 @@
+{
+  "name": "iptv-player",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lecteur IPTV multiplateforme : Android, iOS, Samsung Tizen et LG webOS",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build:tizen": "npm run build && node scripts/package-tv.mjs tizen",
+    "build:webos": "npm run build && node scripts/package-tv.mjs webos",
+    "cap:sync": "npm run build && cap sync",
+    "cap:android": "npm run cap:sync && cap open android",
+    "cap:ios": "npm run cap:sync && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "hls.js": "^1.7.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@vitejs/plugin-legacy": "^8.2.3",
+    "terser": "^5.36.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.0",
+    "vitest": "^5.0.1"
+  }
+}
