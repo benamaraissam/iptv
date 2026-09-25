@@ -116,6 +116,9 @@ class AppCore {
     this.layout = next;
     this.shell.classList.toggle('layout-wide', next === 'wide');
     this.shell.classList.toggle('layout-compact', next === 'compact');
+    // Aussi sur <html> : les modales sont ajoutées hors de la coquille.
+    document.documentElement.classList.toggle('layout-wide', next === 'wide');
+    document.documentElement.classList.toggle('layout-compact', next === 'compact');
     if (changed) {
       this.renderNav();
       // Les écrans dont la mise en page diffère sont reconstruits.

@@ -13,7 +13,7 @@ import {
 } from '../ui/components';
 import * as store from '../storage';
 import { formatDate, getLang, setLang, t, type TKey } from '../i18n';
-import { brandClock } from './common';
+import { brandClock, groupIcon } from './common';
 
 function header(title: string, back: boolean): HTMLElement {
   return app.wide
@@ -23,14 +23,6 @@ function header(title: string, back: boolean): HTMLElement {
 
 // ───────────── 16. Catégories ─────────────
 
-const GROUP_ICONS: [RegExp, IconName][] = [
-  [/sport|foot|bein|match/i, 'sports'],
-  [/news|info|actu/i, 'news'],
-  [/kid|enfant|jeunesse|cartoon|dessin/i, 'kids'],
-  [/music|musique|clip/i, 'music'],
-  [/doc/i, 'info'],
-  [/radio/i, 'radio'],
-];
 
 export function categories(): Screen {
   const cat = app.catalog!;
@@ -52,8 +44,7 @@ export function categories(): Screen {
   ].filter((_x, i) => !(i === 1 && !cat.movies.length) && !(i === 2 && !cat.shows.length));
 
   const groups = cat.groups(cat.live).map((g) => {
-    let ic: IconName = 'live';
-    for (const [re, name] of GROUP_ICONS) if (re.test(g)) ic = name;
+    const ic = groupIcon(g);
     const locked = app.isLocked(g);
     return tile(locked ? 'lock' : ic, g, cat.live.filter((c) => c.group === g).length, () => app.reset('live', { group: g }), 't-glass');
   });

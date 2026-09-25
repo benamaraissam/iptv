@@ -1,7 +1,7 @@
 import type { Channel } from '../types';
 import { app } from '../app';
 import { h } from '../ui/dom';
-import { logoMark } from '../ui/icons';
+import { logoMark, type IconName } from '../ui/icons';
 import { currentProgram } from '../epg';
 import { formatTime, t } from '../i18n';
 
@@ -43,4 +43,21 @@ export function fillNow(el: HTMLElement, ch: Channel, fallback: string): void {
   const cached = cat.epg.peek(ch);
   if (cached) return set(cached);
   cat.epg.programs(ch).then(set, () => undefined);
+}
+
+const GROUP_ICONS: [RegExp, IconName][] = [
+  [/sport|foot|bein|match|racing/i, 'sports'],
+  [/news|info|actu/i, 'news'],
+  [/kid|enfant|jeunesse|cartoon|dessin/i, 'kids'],
+  [/music|musique|clip/i, 'music'],
+  [/movie|film|cin[eé]/i, 'movie'],
+  [/s[eé]rie/i, 'series'],
+  [/doc/i, 'info'],
+  [/radio/i, 'radio'],
+];
+
+/** Icône d'une catégorie de chaînes, devinée d'après son nom. */
+export function groupIcon(name: string): IconName {
+  for (const [re, ic] of GROUP_ICONS) if (re.test(name)) return ic;
+  return 'live';
 }
