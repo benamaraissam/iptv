@@ -92,15 +92,26 @@ async function probeNative(url: string): Promise<Health> {
 }
 
 /**
- * Navigateur / TV : XMLHttpRequest (compatible vieux moteurs, contrairement à AbortController).
- * Pour un flux continu on s'arrête dès les en-têtes reçus.
+ * Navigateur / TV : on teste exactement ce que le lecteur fera.
+ * - HLS (.m3u8) : lu par hls.js via XMLHttpRequest → si la requête est bloquée (CORS),
+ *   la chaîne est illisible sur cet appareil : hors ligne.
+ * - Autres liens : si la requête est bloquée, on essaie une balise <video> cachée
+ *   (la lecture média n'est pas soumise au CORS).
  */
-function probeXhr(url: string): Promise<Health> {
+async function probeXhr(url: string): Promise<Health> {
+  const r = await xhrProbe(url);
+  if (r !== 'blocked') return r;
+  if (isHls(url) || platform !== 'web') return 'down';
+  return probeMedia(url);
+}
+
+/** Requête XMLHttpRequest (compatible vieux moteurs) ; s'arrête aux en-têtes pour un flux continu. */
+function xhrProbe(url: string): Promise<Health | 'blocked'> {
   return new Promise((resolve) => {
     const hls = isHls(url);
     const xhr = new XMLHttpRequest();
     let done = false;
-    const finish = (s: Health) => {
+    const finish = (s: Health | 'blocked') => {
       if (done) return;
       done = true;
       window.clearTimeout(timer);
@@ -116,19 +127,43 @@ function probeXhr(url: string): Promise<Health> {
       if (xhr.readyState === 2 && xhr.status) {
         if (xhr.status >= 400) finish('down');
         else if (!hls) finish('ok');
-      } else if (xhr.readyState === 4 && hls) {
-        if (!xhr.status) return; // géré par onerror
+      } else if (xhr.readyState === 4 && hls && xhr.status) {
         finish(xhr.status < 400 && (xhr.responseText || '').indexOf('#EXT') !== -1 ? 'ok' : 'down');
       }
     };
-    // Statut 0 : réseau coupé… ou CORS. Sur TV (pas de CORS) c'est un vrai échec ;
-    // dans un navigateur on ne peut pas savoir.
-    xhr.onerror = () => finish(platform === 'web' ? 'unknown' : 'down');
+    // Statut 0 : réseau coupé ou requête refusée par le serveur (CORS).
+    xhr.onerror = () => finish('blocked');
     try {
       xhr.open('GET', url, true);
       xhr.send();
     } catch {
-      finish('unknown');
+      finish('blocked');
     }
+  });
+}
+
+/** Charge les métadonnées dans une <video> invisible : ok si le flux démarre. */
+function probeMedia(url: string): Promise<Health> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.muted = true;
+    v.preload = 'metadata';
+    let done = false;
+    const finish = (s: Health) => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timer);
+      v.removeAttribute('src');
+      try {
+        v.load();
+      } catch {
+        /* ignore */
+      }
+      resolve(s);
+    };
+    const timer = window.setTimeout(() => finish('down'), TIMEOUT);
+    v.addEventListener('loadedmetadata', () => finish('ok'));
+    v.addEventListener('error', () => finish('down'));
+    v.src = url;
   });
 }

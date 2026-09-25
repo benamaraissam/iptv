@@ -132,6 +132,7 @@ export function live(params: { group?: string }): Screen {
 
   const startPreview = (ch: Channel, focusRow = false) => {
     preview = ch;
+    screenBox.classList.add('has-preview');
     placeholder.classList.add('hidden');
     monError.classList.add('hidden');
     monSpinner.classList.remove('hidden');
@@ -169,6 +170,7 @@ export function live(params: { group?: string }): Screen {
     engine.stop();
     if (engine.video.parentNode === screenBox) screenBox.removeChild(engine.video);
     preview = null;
+    screenBox.classList.remove('has-preview');
     placeholder.classList.remove('hidden');
     monSpinner.classList.add('hidden');
     clear(monLabel);
