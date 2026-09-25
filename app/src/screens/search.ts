@@ -134,6 +134,6 @@ export function search(): Screen {
   };
 }
 
-function liveCard(c: Channel, queue: Channel[]): HTMLElement {
-  return card({ title: c.name, sub: c.group, image: c.logo }, 'channel', () => app.playChannel(c, queue));
+function liveCard(c: Channel, _queue: Channel[]): HTMLElement {
+  return card({ title: c.name, sub: c.group, image: c.logo }, 'channel', () => void app.openChannel(c));
 }

@@ -3835,3 +3835,42 @@ html.kbd .card-top:focus .top-num,
 .layout-wide .rail .card-top {
   width: 14rem;
 }
+
+/* Lecteur : sortie toujours accessible */
+.pl-exit {
+  position: absolute;
+  z-index: 4;
+  top: 1rem;
+  top: calc(1rem + env(safe-area-inset-top));
+  left: 1rem;
+  display: flex;
+  align-items: center;
+  height: 2.6rem;
+  padding: 0 1rem 0 0.7rem;
+  border-radius: 2rem;
+  background: rgba(6, 10, 28, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.85;
+  -webkit-transition: opacity 0.2s;
+  transition: opacity 0.2s;
+}
+.pl-exit .ic {
+  margin-right: 0.35rem;
+}
+.pl-exit:hover {
+  opacity: 1;
+  background: rgba(47, 134, 255, 0.6);
+}
+html.tv .pl-exit {
+  display: none;
+}
+/* Souris / tactile : le bouton « Retour » fixe remplace la flèche des contrôles. */
+html:not(.tv) .pl-back {
+  visibility: hidden;
+}
+html:not(.tv) .pl-heading {
+  margin-left: 5.2rem;
+}

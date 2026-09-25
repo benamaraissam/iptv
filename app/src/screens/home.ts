@@ -419,10 +419,10 @@ export function home(): Screen {
     },
   };
 
-  function playHero(hi: HeroItem, liveList: Channel[]): void {
+  function playHero(hi: HeroItem, _liveList: Channel[]): void {
     if (hi.kind === 'entry') return app.play(hi.e);
     const x = hi.x;
-    if (isLive(x)) return app.playChannel(x as Channel, liveList);
+    if (isLive(x)) return void app.openChannel(x as Channel);
     if (isShow(x)) return void app.openItem(x);
     const m = x as Channel;
     app.unlock(m.group).then((ok) => {
@@ -480,13 +480,13 @@ function pickLiveNow(live: Channel[], history: store.HistoryEntry[], favIds: str
 }
 
 /** Vignette de chaîne : logo sur fond sombre, programme en cours et progression. */
-function channelTile(c: Channel, queue: Channel[], attachHero: (el: HTMLElement, hi: HeroItem) => HTMLElement): HTMLElement {
+function channelTile(c: Channel, _queue: Channel[], attachHero: (el: HTMLElement, hi: HeroItem) => HTMLElement): HTMLElement {
   const cat = app.catalog!;
   const prog = h('div', { class: 'tile-prog', text: c.group });
   const bar = h('i');
   const el = h(
     'button',
-    { type: 'button', class: 'card card-tile focusable', on: { click: () => app.playChannel(c, queue) } },
+    { type: 'button', class: 'card card-tile focusable', on: { click: () => void app.openChannel(c) } },
     h(
       'div',
       { class: 'card-media' },

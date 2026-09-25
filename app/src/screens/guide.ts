@@ -79,7 +79,7 @@ export function guide(): Screen {
       { class: 'epg-row' },
       h(
         'button',
-        { type: 'button', class: 'epg-channel focusable', on: { click: () => app.playChannel(ch, channels) } },
+        { type: 'button', class: 'epg-channel focusable', on: { click: () => void app.openChannel(ch) } },
         h('span', { class: 'num', text: channelNumber(ch) }),
         h('span', { class: 'name', text: ch.name }),
       ),

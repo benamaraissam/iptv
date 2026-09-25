@@ -75,6 +75,25 @@ export function player(params: Params): Screen {
   const errorBox = h('div', { class: 'pl-error hidden' });
   const numEntry = h('div', { class: 'pl-num hidden' });
   el.appendChild(h('div', { class: 'pl-overlay' }, top, bottom));
+  // Bouton « Retour » toujours visible (souris / tactile), même quand les contrôles sont masqués.
+  el.appendChild(
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'pl-exit',
+        'aria-label': t('back'),
+        on: {
+          click: (ev: Event) => {
+            ev.stopPropagation();
+            app.back();
+          },
+        },
+      },
+      icon('back'),
+      h('span', { text: t('back') }),
+    ),
+  );
   el.appendChild(spinner);
   el.appendChild(errorBox);
   el.appendChild(numEntry);
@@ -142,6 +161,11 @@ export function player(params: Params): Screen {
   };
 
   const onEnded = () => {
+    // Un direct ne « se termine » pas : coupure du flux → on se reconnecte.
+    if (isLive) {
+      engine.load(item.url);
+      return;
+    }
     saveProgress();
     if (item.kind === 'episode' && store.getSettings().autoplayNext && index < queue.length - 1) go(1);
     else app.back();

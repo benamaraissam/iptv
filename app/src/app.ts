@@ -329,12 +329,19 @@ class AppCore {
     return !!ok;
   }
 
-  async openItem(item: Channel | Show, queue?: Channel[]): Promise<void> {
+  async openItem(item: Channel | Show, _queue?: Channel[]): Promise<void> {
     if (!(await this.unlock(item.group))) return;
-    if ('kind' in item && item.kind === 'live') return this.playChannel(item, queue);
+    if ('kind' in item && item.kind === 'live') return this.openChannel(item);
     this.push('detail', { id: item.id });
   }
 
+  /** Ouvre la TV en direct (liste + moniteur) avec cette chaîne lancée dans le moniteur. */
+  async openChannel(ch: Channel): Promise<void> {
+    if (!(await this.unlock(ch.group))) return;
+    this.reset('live', { channelId: ch.id });
+  }
+
+  /** Lecture plein écran directe (depuis la TV en direct ou le guide). */
   playChannel(ch: Channel, queue?: Channel[]): void {
     const list = queue && queue.length ? queue : [ch];
     this.play(channelPlayable(ch), {

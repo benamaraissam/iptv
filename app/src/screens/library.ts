@@ -21,7 +21,7 @@ export function library(params: { tab?: Tab }): Screen {
   const openRef = (r: ItemRef) => {
     const item = cat.get(r.id);
     if (!item) return;
-    if (r.kind === 'live') app.playChannel(item as Channel, cat.live.filter((c) => app.inMyList(c.id)));
+    if (r.kind === 'live') void app.openChannel(item as Channel);
     else app.openItem(item);
   };
 

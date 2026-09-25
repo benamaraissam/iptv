@@ -17,7 +17,7 @@ import { brandClock, channelNumber, groupIcon } from './common';
  * - Mobile : moniteur en haut, catégories en puces, liste dessous.
  * Un appui lance la chaîne dans le moniteur, un second passe en plein écran.
  */
-export function live(params: { group?: string }): Screen {
+export function live(params: { group?: string; channelId?: string }): Screen {
   const cat = app.catalog!;
   const engine = app.engine;
   const pid = cat.playlist.id;
@@ -62,7 +62,7 @@ export function live(params: { group?: string }): Screen {
   const fsBtn = h('button', { type: 'button', class: 'monitor-fs focusable', 'aria-label': t('fullscreen'), on: { click: () => fullscreen() } }, icon('fullscreen'));
   screenBox.appendChild(fsBtn);
   screenBox.addEventListener('click', (e) => {
-    if (e.target !== fsBtn && preview) fullscreen();
+    if (!fsBtn.contains(e.target as Node) && preview) fullscreen();
   });
 
   const infoBox = h('div', { class: 'monitor-info' });
@@ -418,7 +418,10 @@ export function live(params: { group?: string }): Screen {
       const last = lastLive();
       if (firstShow) {
         firstShow = false;
-        if (wide && last) startPreview(last);
+        // Ouvert depuis l'accueil / la recherche : la chaîne demandée démarre dans le moniteur.
+        const asked = params.channelId ? (cat.get(params.channelId) as Channel | undefined) : undefined;
+        if (asked && asked.kind === 'live') startPreview(asked);
+        else if (wide && last) startPreview(last);
       } else if (preview) {
         // Retour du plein écran : on reprend la chaîne regardée en dernier (zapping inclus).
         startPreview(last || preview);
