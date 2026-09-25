@@ -8,6 +8,7 @@ import * as xt from './xtream';
 import * as store from './storage';
 import { EpgStore } from './epg';
 import { hasGoodImage, knownPoster } from './imgcache';
+import { isNative, lowPower } from './platform';
 
 interface CacheData {
   v: number;
@@ -17,9 +18,26 @@ interface CacheData {
   episodes: Channel[];
   account?: AccountInfo;
   epgUrl?: string;
+  /** Xtream chargé par catégorie : les films / séries arrivent après (cache par catégorie). */
+  progressive?: boolean;
+  vodCats?: xt.XtreamCategory[];
+  serCats?: xt.XtreamCategory[];
 }
 
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
+
+/**
+ * Box TV et appareils peu puissants : la liste complète des films (plusieurs dizaines de Mo
+ * de JSON) ne passe pas par le pont natif sans figer l'appareil. On charge alors les
+ * catégories une par une, en arrière-plan, et l'interface est utilisable tout de suite.
+ */
+const PROGRESSIVE = isNative || lowPower;
+
+export interface LoadState {
+  done: number;
+  total: number;
+  complete: boolean;
+}
 const SEASON_RE = /^(.*?)[\s\-–:|]+(?:saison|season|s)\s*(\d+)\s*$/i;
 
 /** « Awled Moufida - Season 2 » → { name: 'Awled Moufida', season: 2 }. */
@@ -72,6 +90,15 @@ export class Catalog {
   private index = new Map<string, Channel | Show>();
   private movieVersions = new VersionIndex<Channel>(() => this.movies);
   private showVersions = new VersionIndex<Show>(() => this.shows);
+  /** Catégories films / séries (complètes dès le départ, même si leur contenu arrive après). */
+  vodGroups: string[] = [];
+  showGroups: string[] = [];
+  loadState: LoadState = { done: 0, total: 0, complete: true };
+  private progressListeners: ((s: LoadState) => void)[] = [];
+  private catQueue: { kind: 'm' | 's'; cat: xt.XtreamCategory }[] = [];
+  private catDone: Record<string, Promise<void>> = {};
+  private catResolve: Record<string, () => void> = {};
+  private running = 0;
 
   private constructor(
     readonly playlist: Playlist,
@@ -87,6 +114,14 @@ export class Catalog {
     for (const sh of this.shows) if (!hasGoodImage(sh.cover)) sh.cover = knownPoster(sh.id) || sh.cover;
     for (const list of [this.live, this.movies, this.shows] as (Channel | Show)[][]) {
       for (const x of list) this.index.set(x.id, x);
+    }
+    this.vodGroups = data.vodCats ? data.vodCats.map((c) => c.name) : this.groups(this.movies);
+    this.showGroups = data.serCats ? data.serCats.map((c) => c.name) : this.groups(this.shows);
+    if (data.progressive) {
+      for (const cat of data.vodCats || []) this.catQueue.push({ kind: 'm', cat });
+      for (const cat of data.serCats || []) this.catQueue.push({ kind: 's', cat });
+      this.loadState = { done: 0, total: this.catQueue.length, complete: this.catQueue.length === 0 };
+      for (const q of this.catQueue) this.catDone[q.kind + q.cat.id] = new Promise((r) => (this.catResolve[q.kind + q.cat.id] = r));
     }
     // Index de recherche construit en arrière-plan, une fois l'interface affichée.
     window.setTimeout(() => {
@@ -108,15 +143,28 @@ export class Catalog {
       mark('catalogue : lecture du cache');
       const cached = await store.getCache<CacheData>(playlist.id);
       mark('catalogue : cache lu');
-      if (cached && cached.v === CACHE_VERSION) return timed('catalogue : préparation', () => new Catalog(playlist, cached));
+      if (cached && cached.v === CACHE_VERSION) {
+        const cat = timed('catalogue : préparation', () => new Catalog(playlist, cached));
+        cat.startProgressive();
+        return cat;
+      }
+    } else if (playlist.source.type === 'xtream') {
+      await store.clearCategoryCache(playlist.id);
     }
     const data = await Catalog.fetch(playlist);
     await store.setCache(playlist.id, data);
-    return new Catalog(playlist, data);
+    const cat = new Catalog(playlist, data);
+    cat.startProgressive();
+    return cat;
   }
 
   private static async fetch(p: Playlist): Promise<CacheData> {
     if (p.source.type === 'xtream') {
+      if (PROGRESSIVE) {
+        const b = await xt.loadXtreamBase(p.source);
+        if (!b.live.length && !b.vodCats.length && !b.serCats.length) throw new Error('playlist vide');
+        return { v: CACHE_VERSION, live: b.live, movies: [], shows: [], episodes: [], account: b.account, progressive: true, vodCats: b.vodCats, serCats: b.serCats };
+      }
       const r = await xt.loadXtream(p.source);
       if (!r.live.length && !r.movies.length && !r.shows.length) throw new Error('playlist vide');
       return { v: CACHE_VERSION, live: r.live, movies: r.movies, shows: r.shows, episodes: [], account: r.account };
@@ -137,6 +185,89 @@ export class Catalog {
 
   get isXtream(): boolean {
     return this.playlist.source.type === 'xtream';
+  }
+
+  // ───────────── Chargement progressif (catégorie par catégorie) ─────────────
+
+  onProgress(fn: (s: LoadState) => void): () => void {
+    this.progressListeners.push(fn);
+    return () => {
+      const i = this.progressListeners.indexOf(fn);
+      if (i >= 0) this.progressListeners.splice(i, 1);
+    };
+  }
+
+  private notifyProgress(): void {
+    for (const fn of this.progressListeners.slice()) fn(this.loadState);
+  }
+
+  /** Charge en priorité une catégorie que l'utilisateur ouvre ; résolu quand elle est là. */
+  ensureGroup(kind: 'movies' | 'series', group: string): Promise<void> {
+    const k = kind === 'movies' ? 'm' : 's';
+    for (let i = 0; i < this.catQueue.length; i++) {
+      const q = this.catQueue[i];
+      if (q.kind === k && q.cat.name === group) {
+        this.catQueue.splice(i, 1);
+        this.catQueue.unshift(q);
+        this.pump();
+        return this.catDone[k + q.cat.id];
+      }
+    }
+    for (const key in this.catDone) if (key.charAt(0) === k) return Promise.resolve();
+    return Promise.resolve();
+  }
+
+  private startProgressive(): void {
+    if (this.loadState.complete) return;
+    this.pump();
+  }
+
+  private pump(): void {
+    const max = lowPower ? 1 : 3;
+    while (this.running < max && this.catQueue.length) {
+      const q = this.catQueue.shift()!;
+      this.running++;
+      this.loadCategory(q.kind, q.cat).then(
+        () => this.finishCategory(q),
+        () => this.finishCategory(q),
+      );
+    }
+  }
+
+  private finishCategory(q: { kind: 'm' | 's'; cat: xt.XtreamCategory }): void {
+    this.running--;
+    this.loadState = { done: this.loadState.done + 1, total: this.loadState.total, complete: this.loadState.done + 1 >= this.loadState.total };
+    const r = this.catResolve[q.kind + q.cat.id];
+    if (r) r();
+    this.notifyProgress();
+    this.pump();
+  }
+
+  private async loadCategory(kind: 'm' | 's', cat: xt.XtreamCategory): Promise<void> {
+    const key = kind + '.' + cat.id;
+    const src = this.playlist.source;
+    if (src.type !== 'xtream') return;
+    let items = await store.getCategoryCache<(Channel | Show)[]>(this.playlist.id, key);
+    if (!items) {
+      mark('catalogue : catégorie « ' + cat.name + ' »');
+      items = kind === 'm' ? await xt.loadVodCategory(src, cat) : await xt.loadSeriesCategory(src, cat);
+      await store.setCategoryCache(this.playlist.id, key, items);
+    }
+    if (kind === 'm') {
+      for (const m of items as Channel[]) {
+        if (!hasGoodImage(m.logo)) m.logo = knownPoster(m.id) || m.logo;
+        this.movies.push(m);
+        this.index.set(m.id, m);
+      }
+      prepareSearch(this.movies);
+    } else {
+      for (const sh of items as Show[]) {
+        if (!hasGoodImage(sh.cover)) sh.cover = knownPoster(sh.id) || sh.cover;
+        this.shows.push(sh);
+        this.index.set(sh.id, sh);
+      }
+      prepareSearch(this.shows);
+    }
   }
 
   get(id: string): Channel | Show | undefined {

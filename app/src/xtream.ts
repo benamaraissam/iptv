@@ -140,6 +140,117 @@ export interface XtreamCatalog {
   account: AccountInfo;
 }
 
+export interface XtreamCategory {
+  id: string;
+  name: string;
+}
+
+/** Compte, chaînes et listes de catégories : ce qu'il faut pour démarrer tout de suite. */
+export interface XtreamBase {
+  account: AccountInfo;
+  live: Channel[];
+  vodCats: XtreamCategory[];
+  serCats: XtreamCategory[];
+}
+
+function categories(cats: unknown): XtreamCategory[] {
+  const out: XtreamCategory[] = [];
+  for (const cat of list<XCategory>(cats)) {
+    const id = str(cat.category_id);
+    if (id) out.push({ id, name: str(cat.category_name) || 'Autres' });
+  }
+  return out;
+}
+
+const untitled = (id: unknown) => 'Sans titre ' + str(id);
+
+function mapLive(c: XtreamCredentials, live: unknown, catName: (id: unknown) => string): Channel[] {
+  const liveBase = streamBase(c, 'live');
+  return list<XStream>(live)
+    .filter((s) => s.stream_id !== undefined && s.stream_id !== null)
+    .map((s) => ({
+      id: 'l' + s.stream_id,
+      name: str(s.name) || untitled(s.stream_id),
+      url: liveBase + s.stream_id + '.m3u8',
+      logo: opt(s.stream_icon),
+      group: catName(s.category_id),
+      tvgId: opt(s.epg_channel_id),
+      kind: 'live' as const,
+      streamId: s.stream_id,
+      archive: s.tv_archive === 1 || s.tv_archive === '1',
+    }));
+}
+
+function mapMovies(c: XtreamCredentials, vod: unknown, catName: (id: unknown) => string): Channel[] {
+  const movieBase = streamBase(c, 'movie');
+  return list<XStream>(vod)
+    .filter((s) => s.stream_id !== undefined && s.stream_id !== null)
+    .map((s) => ({
+      id: 'm' + s.stream_id,
+      // « Titre (2021) » → titre seul, l'année est affichée à part.
+      name: str(s.name).replace(/\s*\((\d{4})\)\s*$/, '') || str(s.name) || untitled(s.stream_id),
+      url: movieBase + s.stream_id + '.' + (str(s.container_extension) || 'mp4'),
+      logo: opt(s.stream_icon),
+      group: catName(s.category_id),
+      kind: 'movie' as const,
+      streamId: s.stream_id,
+      added: num(s.added) ? num(s.added)! * 1000 : undefined,
+      rating: num(s.rating),
+      year: year((/\((\d{4})\)/.exec(str(s.name)) || [])[1]),
+    }));
+}
+
+function mapShows(series: unknown, catName: (id: unknown) => string): Show[] {
+  return list<XSeries>(series)
+    .filter((s) => s.series_id !== undefined && s.series_id !== null)
+    .map((s) => ({
+      id: 's' + s.series_id,
+      name: str(s.name) || untitled(s.series_id),
+      cover: opt(s.cover),
+      backdrop: firstImage(s.backdrop_path),
+      group: catName(s.category_id),
+      plot: opt(s.plot),
+      genre: opt(s.genre),
+      rating: num(s.rating),
+      year: year(str(s.releaseDate)),
+      added: num(s.last_modified) ? num(s.last_modified)! * 1000 : undefined,
+      seriesId: s.series_id,
+    }));
+}
+
+function namer(cats: XtreamCategory[]): (id: unknown) => string {
+  const m: Record<string, string> = {};
+  for (const cat of cats) m[cat.id] = cat.name;
+  return (id: unknown) => m[str(id)] || 'Autres';
+}
+
+/**
+ * Démarrage rapide : compte, chaînes et catégories seulement. Les films et séries
+ * se chargent ensuite catégorie par catégorie (voir loadVodCategory / loadSeriesCategory) :
+ * sur une box TV, la liste complète (plusieurs dizaines de Mo) bloquerait l'appareil.
+ */
+export async function loadXtreamBase(c: XtreamCredentials): Promise<XtreamBase> {
+  const account = await getAccount(c);
+  const [liveCats, live, vodCats, serCats] = await Promise.all([
+    get<XCategory[]>(api(c, '&action=get_live_categories')),
+    get<XStream[]>(api(c, '&action=get_live_streams')),
+    get<XCategory[]>(api(c, '&action=get_vod_categories')).catch(() => [] as XCategory[]),
+    get<XCategory[]>(api(c, '&action=get_series_categories')).catch(() => [] as XCategory[]),
+  ]);
+  return { account, live: mapLive(c, live, namer(categories(liveCats))), vodCats: categories(vodCats), serCats: categories(serCats) };
+}
+
+export async function loadVodCategory(c: XtreamCredentials, cat: XtreamCategory): Promise<Channel[]> {
+  const vod = await get<XStream[]>(api(c, '&action=get_vod_streams&category_id=' + encodeURIComponent(cat.id)));
+  return mapMovies(c, vod, () => cat.name);
+}
+
+export async function loadSeriesCategory(c: XtreamCredentials, cat: XtreamCategory): Promise<Show[]> {
+  const series = await get<XSeries[]>(api(c, '&action=get_series&category_id=' + encodeURIComponent(cat.id)));
+  return mapShows(series, () => cat.name);
+}
+
+/** Chargement complet en trois requêtes (navigateur de bureau). */
 export async function loadXtream(c: XtreamCredentials): Promise<XtreamCatalog> {
   const account = await getAccount(c);
   const [liveCats, live, vodCats, vod, serCats, series] = await Promise.all([
@@ -150,58 +261,11 @@ export async function loadXtream(c: XtreamCredentials): Promise<XtreamCatalog> {
     get<XCategory[]>(api(c, '&action=get_series_categories')).catch(() => [] as XCategory[]),
     get<XSeries[]>(api(c, '&action=get_series')).catch(() => [] as XSeries[]),
   ]);
-
-  const names = (cats: XCategory[]) => {
-    const m: Record<string, string> = {};
-    for (const cat of list<XCategory>(cats)) m[str(cat.category_id)] = str(cat.category_name);
-    return (id: unknown) => m[str(id)] || 'Autres';
-  };
-  const untitled = (id: unknown) => 'Sans titre ' + str(id);
-  const liveCat = names(liveCats);
-  const vodCat = names(vodCats);
-  const serCat = names(serCats);
-  const liveBase = streamBase(c, 'live');
-  const movieBase = streamBase(c, 'movie');
-
   return {
     account,
-    live: list<XStream>(live).filter((s) => s.stream_id !== undefined && s.stream_id !== null).map((s) => ({
-      id: 'l' + s.stream_id,
-      name: str(s.name) || untitled(s.stream_id),
-      url: liveBase + s.stream_id + '.m3u8',
-      logo: opt(s.stream_icon),
-      group: liveCat(s.category_id),
-      tvgId: opt(s.epg_channel_id),
-      kind: 'live' as const,
-      streamId: s.stream_id,
-      archive: s.tv_archive === 1 || s.tv_archive === '1',
-    })),
-    movies: list<XStream>(vod).filter((s) => s.stream_id !== undefined && s.stream_id !== null).map((s) => ({
-      id: 'm' + s.stream_id,
-      // « Titre (2021) » → titre seul, l'année est affichée à part.
-      name: str(s.name).replace(/\s*\((\d{4})\)\s*$/, '') || str(s.name) || untitled(s.stream_id),
-      url: movieBase + s.stream_id + '.' + (str(s.container_extension) || 'mp4'),
-      logo: opt(s.stream_icon),
-      group: vodCat(s.category_id),
-      kind: 'movie' as const,
-      streamId: s.stream_id,
-      added: num(s.added) ? num(s.added)! * 1000 : undefined,
-      rating: num(s.rating),
-      year: year((/\((\d{4})\)/.exec(str(s.name)) || [])[1]),
-    })),
-    shows: list<XSeries>(series).filter((s) => s.series_id !== undefined && s.series_id !== null).map((s) => ({
-      id: 's' + s.series_id,
-      name: str(s.name) || untitled(s.series_id),
-      cover: opt(s.cover),
-      backdrop: firstImage(s.backdrop_path),
-      group: serCat(s.category_id),
-      plot: opt(s.plot),
-      genre: opt(s.genre),
-      rating: num(s.rating),
-      year: year(str(s.releaseDate)),
-      added: num(s.last_modified) ? num(s.last_modified)! * 1000 : undefined,
-      seriesId: s.series_id,
-    })),
+    live: mapLive(c, live, namer(categories(liveCats))),
+    movies: mapMovies(c, vod, namer(categories(vodCats))),
+    shows: mapShows(series, namer(categories(serCats))),
   };
 }
 

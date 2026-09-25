@@ -80,6 +80,11 @@ la compatibilité **Android TV** (bannière `res/drawable/banner.png`).
 
 ## Fire TV / Android TV
 
+Sur une box TV (et tout appareil peu puissant), le catalogue Xtream se charge **catégorie par
+catégorie** en arrière-plan : les chaînes et les catégories arrivent tout de suite, les films
+et séries suivent (pastille « Chargement du catalogue 37 % »), chaque catégorie est mise en cache
+séparément (IndexedDB). Une catégorie ouverte avant d'être chargée passe en tête de file.
+
 L'application est déclarée comme appli TV (`LEANBACK_LAUNCHER`, bannière, pas d'écran tactile
 requis). `MainActivity` détecte le mode télévision (Fire TV, Android TV, Google TV), passe
 l'interface en mode « 10 pieds » et relaie au JavaScript les touches de la télécommande que la

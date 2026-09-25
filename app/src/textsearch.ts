@@ -62,7 +62,10 @@ function entryOf(name: string): Entry {
 
 function indexState<T extends { name: string }>(list: T[]): Index {
   let idx = indexes.get(list);
-  if (!idx || idx.entries.length !== list.length) {
+  if (idx && list.length > idx.entries.length) {
+    // Catalogue chargé progressivement : on prolonge l'index, sans le refaire.
+    idx.entries.length = list.length;
+  } else if (!idx || list.length < idx.entries.length) {
     idx = { entries: new Array(list.length), done: 0 };
     indexes.set(list, idx);
   }

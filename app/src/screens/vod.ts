@@ -4,7 +4,7 @@ import type { Channel, Show } from '../types';
 import { h, clear, pagedList } from '../ui/dom';
 import { card, chips, emptyState, iconBtn, screenHeader, type ChipOption } from '../ui/components';
 import { t } from '../i18n';
-import { brandClock, categoryButton, imageFirst, prefetchOnIntent, resolvePoster } from './common';
+import { brandClock, catalogProgress, categoryButton, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { icon } from '../ui/icons';
 import { languageOf } from '../versions';
 import { matchesQuery } from '../textsearch';
@@ -16,7 +16,7 @@ type Sort = 'popular' | 'new' | 'az';
  * Catalogue de films ou de séries : bouton « Catégorie » + tri, puis grille d'affiches.
  * Réutilisé par l'écran Films / Séries et par la Bibliothèque (mobile).
  */
-export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { toolbar: HTMLElement; body: HTMLElement } {
+export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { toolbar: HTMLElement; body: HTMLElement; destroy: () => void } {
   const cat = app.catalog!;
   const all: Item[] = kind === 'movies' ? cat.movies : cat.shows;
   const hasNew = all.some((x) => !!x.added);
@@ -59,11 +59,23 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
     return imageFirst(list, (x) => ('kind' in x ? x.logo : x.cover));
   };
 
+  let renderToken = 0;
   const render = () => {
     clear(grid);
     body.scrollTop = 0;
     const items = current();
     if (!items.length) {
+      // Catégorie pas encore chargée (catalogue progressif) : on la demande en priorité.
+      if (group && !cat.loadState.complete) {
+        const token = ++renderToken;
+        grid.appendChild(h('div', { class: 'grid-loading' }, h('div', { class: 'spinner' }), h('p', { class: 'muted', text: t('categoryLoading') })));
+        cat.ensureGroup(kind, group).then(() => {
+          if (token !== renderToken) return;
+          catBtn.set(group);
+          render();
+        });
+        return;
+      }
       grid.appendChild(emptyState(kind === 'movies' ? 'movie' : 'series', t('noResults'), t('noResultsText')));
       return;
     }
@@ -71,15 +83,19 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
   };
 
   const countOf = (g: string | null) => (g === null ? all.filter((x) => !app.isLocked(x.group)).length : all.filter((x) => x.group === g).length);
+  const allGroups = kind === 'movies' ? cat.vodGroups : cat.showGroups;
   const catBtn = categoryButton({
-    groups: cat.groups(all),
+    groups: allGroups.length ? allGroups : cat.groups(all),
     selected: group,
     countOf,
     onChange: (g) => {
       group = g;
+      renderToken++;
       render();
+      if (g && !cat.loadState.complete) cat.ensureGroup(kind, g);
     },
   });
+  if (group && !cat.loadState.complete) cat.ensureGroup(kind, group);
 
   const sorts: ChipOption[] = ([] as ChipOption[])
     .concat(hasRating ? [{ id: 'popular', label: t('popular') }] : [])
@@ -114,10 +130,23 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
       : null;
   if (langEl) langEl.classList.add('lang-chips');
 
+  const progress = catalogProgress();
+  // Fin du chargement progressif : la vue « Toutes les catégories » se complète.
+  const offProgress = cat.loadState.complete
+    ? () => undefined
+    : cat.onProgress((s) => {
+        if (!s.complete) return;
+        catBtn.set(group);
+        if (!group) render();
+      });
   render();
   return {
-    toolbar: h('div', { class: 'vod-tools' }, h('div', { class: 'live-filterbar vod-filterbar' }, catBtn.el, searchEl, sorts.length > 1 ? sortEl : null), langEl),
+    toolbar: h('div', { class: 'vod-tools' }, h('div', { class: 'live-filterbar vod-filterbar' }, catBtn.el, searchEl, sorts.length > 1 ? sortEl : null), langEl, progress.el),
     body,
+    destroy: () => {
+      progress.off();
+      offProgress();
+    },
   };
 }
 
@@ -128,7 +157,7 @@ function vodScreen(kind: 'movies' | 'series', params: { group?: string }): Scree
     ? h('header', { class: 'tv-header' }, h('h1', { class: 'screen-title', text: title }), brandClock())
     : screenHeader(title, { back: () => app.back(), actions: [iconBtn('search', t('search'), () => app.reset('search'))] });
   const b = vodBrowser(kind, params.group);
-  return { el: h('section', { class: 'vod' }, header, b.toolbar, b.body), chrome: 'nav', tab: kind };
+  return { el: h('section', { class: 'vod' }, header, b.toolbar, b.body), chrome: 'nav', tab: kind, destroy: b.destroy };
 }
 
 export function posterCard(x: Item): HTMLElement {

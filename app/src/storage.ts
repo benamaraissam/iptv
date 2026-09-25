@@ -1,6 +1,6 @@
 import type { ItemRef, Playable, Playlist } from './types';
 import type { Lang } from './i18n';
-import { idbDel, idbGet, idbSet } from './idb';
+import { idbDel, idbGet, idbKeys, idbSet } from './idb';
 
 const P = 'sp.';
 
@@ -95,6 +95,7 @@ export function removePlaylist(id: string): void {
   remove('history.' + id);
   remove('cache.' + id);
   void idbDel('cache.' + id);
+  void clearCategoryCache(id);
   remove('searches.' + id);
   const s = getSettings();
   if (s.activePlaylist === id) updateSettings({ activePlaylist: undefined });
@@ -115,6 +116,19 @@ export async function setCache(playlistId: string, data: unknown): Promise<void>
     // Pas d'IndexedDB (très vieux moteur) : on tente localStorage, sinon tant pis.
     if (!write('cache.' + playlistId, data)) remove('cache.' + playlistId);
   }
+}
+
+/** Catalogue chargé par catégorie (box TV) : un enregistrement IndexedDB par catégorie. */
+export function getCategoryCache<T>(playlistId: string, key: string): Promise<T | undefined> {
+  return idbGet<T>('cat.' + playlistId + '.' + key);
+}
+
+export function setCategoryCache(playlistId: string, key: string, data: unknown): Promise<boolean> {
+  return idbSet('cat.' + playlistId + '.' + key, data);
+}
+
+export async function clearCategoryCache(playlistId: string): Promise<void> {
+  for (const k of await idbKeys('cat.' + playlistId + '.')) await idbDel(k);
 }
 
 // ───────────── Ma liste ─────────────

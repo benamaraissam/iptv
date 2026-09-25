@@ -159,6 +159,8 @@ const fr = {
   audioSubs: 'Audio et sous-titres',
   allLanguages: 'Toutes les langues',
   searchIn: 'Rechercher dans',
+  catalogLoading: 'Chargement du catalogue',
+  categoryLoading: 'Chargement de la catégorie…',
   // Profil / paramètres
   account: 'Compte',
   playlists: 'Mes playlists',
@@ -353,6 +355,8 @@ const en: Dict = {
   audioSubs: 'Audio & subtitles',
   allLanguages: 'All languages',
   searchIn: 'Search in',
+  catalogLoading: 'Loading catalog',
+  categoryLoading: 'Loading category…',
   account: 'Account',
   playlists: 'My playlists',
   connectedDevices: 'Connections',

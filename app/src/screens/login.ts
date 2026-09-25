@@ -9,7 +9,8 @@ import { toast } from '../ui/dom';
 import * as store from '../storage';
 import { t } from '../i18n';
 
-const SAMPLE_PLAYLIST_URL = 'https://raw.githubusercontent.com/benamaraissam/iptv/master/list.m3u';
+/** Compte Xtream de démonstration (bouton « Essayer »). */
+const DEMO_XTREAM = { server: 'http://kytv.xyz', username: 'TG2wLJ5CRB', password: 'aeqWu2TBbM' };
 
 /**
  * 2. Connexion : identifiants du fournisseur IPTV (Xtream Codes) ou lien M3U.
@@ -109,7 +110,7 @@ export function login(params: { add?: boolean }): Screen {
       variant: 'glass',
       cls: 'btn-block',
       icon: 'play',
-      onClick: () => connect({ id: hashId(SAMPLE_PLAYLIST_URL), name: 'Playlist d’exemple', source: { type: 'm3u', url: SAMPLE_PLAYLIST_URL } }),
+      onClick: () => connect({ id: 'demo-xtream', name: 'Démo', source: { type: 'xtream', server: DEMO_XTREAM.server, username: DEMO_XTREAM.username, password: DEMO_XTREAM.password } }),
     }),
     h('p', { class: 'legal', text: t('legal') }),
   );

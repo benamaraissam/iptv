@@ -51,6 +51,13 @@ export function idbSet(key: string, value: unknown): Promise<boolean> {
   return run('readwrite', (s) => s.put(value, key)).then((r) => r !== undefined);
 }
 
+/** Toutes les clés commençant par `prefix`. */
+export function idbKeys(prefix: string): Promise<string[]> {
+  return run<IDBValidKey[]>('readonly', (s) => s.getAllKeys(IDBKeyRange.bound(prefix, prefix + '\uffff')) as IDBRequest<IDBValidKey[]>).then((r) =>
+    (r || []).map(String),
+  );
+}
+
 export function idbDel(key: string): Promise<void> {
   return run('readwrite', (s) => s.delete(key)).then(() => undefined);
 }

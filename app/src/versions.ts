@@ -84,10 +84,12 @@ function splitKey(k: string): [string, string] {
 
 export class VersionIndex<T extends Channel | Show> {
   private map: Map<string, T[]> | null = null;
+  private builtFor = -1;
   constructor(private readonly items: () => T[]) {}
 
   private build(): Map<string, T[]> {
-    if (!this.map) {
+    if (!this.map || this.builtFor !== this.items().length) {
+      this.builtFor = this.items().length;
       this.map = new Map();
       for (const x of this.items()) {
         const k = titleKey(x);

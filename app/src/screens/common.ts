@@ -283,3 +283,27 @@ function withShowPosters(list: store.HistoryEntry[]): store.HistoryEntry[] {
     return poster ? { ...e, poster } : e;
   });
 }
+
+/**
+ * Pastille « Chargement du catalogue 37 % » (Xtream chargé par catégorie sur box TV).
+ * Se met à jour toute seule et disparaît quand tout est chargé ; `off()` à détruire l'écran.
+ */
+export function catalogProgress(): { el: HTMLElement | null; off: () => void } {
+  const cat = app.catalog!;
+  if (cat.loadState.complete) return { el: null, off: () => undefined };
+  const label = h('span');
+  const bar = h('i');
+  const el = h('div', { class: 'catalog-progress' }, h('div', { class: 'cp-bar' }, bar), label);
+  const update = (s: { done: number; total: number; complete: boolean }) => {
+    if (s.complete) {
+      el.classList.add('hidden');
+      return;
+    }
+    const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+    label.textContent = t('catalogLoading') + ' ' + pct + ' %';
+    bar.style.width = pct + '%';
+  };
+  update(cat.loadState);
+  const off = cat.onProgress(update);
+  return { el, off };
+}

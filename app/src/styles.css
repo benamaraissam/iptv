@@ -32,6 +32,49 @@ html.tv {
   /* 1920 px → 24 px, 1280 px → 16 px : interface « 10 pieds ». */
   font-size: 1.25vw;
 }
+/* Chargement progressif du catalogue : pastille avec barre */
+.catalog-progress {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin: 0 1rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.layout-wide .catalog-progress {
+  margin-left: 2.5rem;
+}
+.home .catalog-progress {
+  position: absolute;
+  z-index: 5;
+  top: 1rem;
+  right: 6rem;
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  border-radius: 2rem;
+  background: rgba(6, 10, 28, 0.7);
+}
+.cp-bar {
+  width: 5rem;
+  height: 0.3rem;
+  margin-right: 0.6rem;
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.cp-bar i {
+  display: block;
+  height: 100%;
+  background: var(--primary-2);
+}
+.grid-loading {
+  width: 100%;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+.grid-loading .spinner {
+  margin: 0 auto 0.8rem;
+}
 /* Mode léger (Fire TV Stick, box Android TV, vieilles TV) : pas de flou ni d'animation
    coûteuse — sur ces puces, un flou plein écran animé fait tomber tout l'écran à 5 images/s. */
 html.lite *,
@@ -72,10 +115,6 @@ html.lite .bgart {
 }
 html.lite .hero-ambient {
   opacity: 0.22;
-}
-/* Android TV / Fire TV : les téléviseurs rognent les bords (overscan) → marge de sécurité */
-html.tv.platform-android body {
-  padding: 2vh 2.5vw;
 }
 
 * {

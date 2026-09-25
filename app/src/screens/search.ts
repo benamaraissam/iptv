@@ -7,7 +7,7 @@ import { card, chips, emptyState, rail, screenHeader } from '../ui/components';
 import * as store from '../storage';
 import { t } from '../i18n';
 import { posterCard } from './vod';
-import { brandClock } from './common';
+import { brandClock, catalogProgress } from './common';
 import { hasGoodImage } from '../imgcache';
 import { languageOf } from '../versions';
 import { rankSearch } from '../textsearch';
@@ -156,12 +156,16 @@ export function search(): Screen {
     ? h('header', { class: 'tv-header' }, h('h1', { class: 'screen-title', text: t('search') }), brandClock())
     : screenHeader(t('search'));
 
+  const progress = catalogProgress();
   render();
   return {
-    el: h('section', { class: 'search' }, header, h('div', { class: 'search-bar' }, icon('search', 'search-ic'), input), scopes, langChips, body),
+    el: h('section', { class: 'search' }, header, h('div', { class: 'search-bar' }, icon('search', 'search-ic'), input), scopes, langChips, progress.el, body),
     chrome: 'nav',
     tab: 'search',
-    destroy: () => window.clearTimeout(timer),
+    destroy: () => {
+      window.clearTimeout(timer);
+      progress.off();
+    },
   };
 }
 

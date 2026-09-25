@@ -3,12 +3,12 @@ import { app, refOf } from '../app';
 import type { Channel, Details, Program, Show } from '../types';
 import { h, clear } from '../ui/dom';
 import { icon, logoMark, type IconName } from '../ui/icons';
-import { art, bgArt, btn, card, iconBtn, rail, rescuableArt } from '../ui/components';
+import { art, bgArt, btn, card, hasModal, iconBtn, rail, rescuableArt } from '../ui/components';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
-import { channelNumber, clock, continueEntries, historyEntries, imageFirst, prefetchOnIntent, resolvePoster } from './common';
+import { catalogProgress, channelNumber, clock, continueEntries, historyEntries, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { hasGoodImage } from '../imgcache';
 
 type Item = Channel | Show;
@@ -397,6 +397,20 @@ export function home(): Screen {
 
   if (featured.length) showHero(featured[0], true);
 
+  // Catalogue chargé par catégorie (box TV) : pastille de progression, et l'accueil se
+  // reconstruit une fois les premières catégories arrivées, puis à la fin.
+  const progress = catalogProgress();
+  if (progress.el) el.appendChild(progress.el);
+  let refreshed = false;
+  const offProgress = cat.loadState.complete
+    ? () => undefined
+    : cat.onProgress((s) => {
+        const first = !refreshed && s.done >= Math.min(10, s.total);
+        if (!first && !s.complete) return;
+        refreshed = true;
+        if (app.current === 'home' && !hasModal()) app.replace('home');
+      });
+
   return {
     el,
     chrome: 'nav',
@@ -411,6 +425,8 @@ export function home(): Screen {
     destroy: () => {
       window.clearTimeout(rotateTimer);
       window.clearTimeout(focusTimer);
+      progress.off();
+      offProgress();
     },
     onKey: (action) => {
       // Sur l'affiche : ◀ ▶ changent l'élément mis en avant.
