@@ -8,7 +8,7 @@ import { isNative, platform } from './platform';
 export type Health = 'unknown' | 'checking' | 'ok' | 'down';
 
 const TTL = 10 * 60000;
-const TIMEOUT = 8000;
+const TIMEOUT = 12000;
 const MAX_PARALLEL = 3;
 
 const cache = new Map<string, { s: Health; at: number }>();

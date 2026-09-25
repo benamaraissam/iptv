@@ -2796,9 +2796,28 @@ html.kbd .ch-row:focus .ch-prog {
   overflow: hidden;
   padding: 0.2rem 0.2rem 0;
 }
-/* La vidéo ne dépasse jamais la hauteur disponible : pas de défilement à côté. */
+/* Le lecteur occupe exactement l'espace restant (largeur et hauteur) ;
+   les infos du programme restent calées dessous, sans défilement. */
+.live-wide .live-monitor-col {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0.2rem;
+}
 .live-wide .monitor {
-  max-width: calc((100vh - 28rem) * 1.7778);
+  -webkit-box-flex: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.live-wide .monitor-screen {
+  -webkit-box-flex: 1;
+  flex: 1;
+  min-height: 12rem;
+  padding-top: 0;
+}
+.live-wide .monitor-info {
+  flex-shrink: 0;
 }
 .monitor-screen {
   position: relative;

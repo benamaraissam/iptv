@@ -28,9 +28,8 @@ export function live(params: { group?: string }): Screen {
   let preview: Channel | null = null;
   let infoTimer: number | undefined;
   let destroyed = false;
-  // Vérification automatique pour les playlists M3U. Pour Xtream, chaque test ouvre
-  // une connexion sur le compte (souvent limité à 1-2) : on laisse l'utilisateur la lancer.
-  const autoCheck = cat.playlist.source.type === 'm3u';
+  // État des chaînes vérifié automatiquement dès l'ouverture de la liste (toutes playlists).
+  const AUTO_CHECK_MAX = 400;
 
   // ───── Données ─────
   const favIds = (): Record<string, boolean> => {
@@ -234,7 +233,7 @@ export function live(params: { group?: string }): Screen {
       if (cached) fill(cached);
       else cat.epg.programs(ch).then(fill, () => undefined);
     }
-    if (autoCheck) check(ch.url);
+    check(ch.url);
     return el;
   };
 
@@ -282,6 +281,9 @@ export function live(params: { group?: string }): Screen {
     listScroll.scrollTop = 0;
     cancelPending();
     items = current();
+    // Toute la catégorie est vérifiée (pas seulement les lignes affichées),
+    // pour que le compteur et les pastilles soient prêts avant de faire défiler.
+    for (let i = 0; i < items.length && i < AUTO_CHECK_MAX; i++) check(items[i].url);
     renderSummary();
     if (!items.length) {
       pager = null;

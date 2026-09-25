@@ -21,6 +21,9 @@ export class Engine {
   quality: 'auto' | 'high' | 'low' = 'auto';
   /** URL en cours (permet au lecteur plein écran de reprendre l'aperçu sans coupure). */
   currentUrl: string | null = null;
+  /** Déjà retenté avec hls.js (URL sans extension .m3u8 qui s'avère être du HLS). */
+  private triedHls = false;
+  private lastStart = 0;
 
   constructor() {
     const v = document.createElement('video');
@@ -31,6 +34,13 @@ export class Engine {
     v.addEventListener('error', () => {
       const err = v.error;
       if (!err || !v.getAttribute('src')) return;
+      // Beaucoup de liens M3U sont du HLS sans extension « .m3u8 » : Chrome / Android
+      // ne savent pas les lire directement. On retente une fois avec hls.js.
+      if ((err.code === 3 || err.code === 4) && !this.triedHls && this.currentUrl && v.canPlayType('application/vnd.apple.mpegurl') === '') {
+        this.triedHls = true;
+        this.load(this.currentUrl, this.lastStart, true);
+        return;
+      }
       this.fail(err.code === 2 ? 'network' : err.code === 4 || err.code === 3 ? 'format' : 'other');
     });
     v.addEventListener('loadedmetadata', () => this.onTracks());
@@ -46,13 +56,16 @@ export class Engine {
     this.onError(kind, detail);
   }
 
-  async load(url: string, startAt = 0): Promise<void> {
+  async load(url: string, startAt = 0, forceHls = false): Promise<void> {
     const token = ++this.loadToken;
     this.stop();
     this.currentUrl = url;
+    this.lastStart = startAt;
+    if (!forceHls) this.triedHls = false;
     const v = this.video;
 
-    const isHls = /\.m3u8?(\?|$)/i.test(url);
+    const isHls = forceHls || /\.m3u8?(\?|$)/i.test(url);
+    if (isHls) this.triedHls = true;
     const nativeHls = v.canPlayType('application/vnd.apple.mpegurl') !== '';
     const seek = () => {
       if (startAt > 0) {
@@ -78,7 +91,9 @@ export class Engine {
         let mediaRecoveries = 0;
         hls.on(HlsCtor.Events.ERROR, (_evt, data) => {
           if (!data.fatal) return;
-          if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) this.fail('network');
+          // Deuxième essai (lien sans .m3u8) : ce n'était pas du HLS, le format n'est pas lisible ici.
+          if (forceHls && data.details === 'manifestParsingError') this.fail('format');
+          else if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) this.fail('network');
           else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR && mediaRecoveries++ < 2) hls.recoverMediaError();
           else this.fail('other', data.details);
         });
