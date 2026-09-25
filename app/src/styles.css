@@ -4247,14 +4247,11 @@ html.kbd .lib-tabs .chip:focus {
 }
 .pl-side-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  padding: 4.4rem 1.1rem 0.7rem;
-  padding-top: calc(4.4rem + env(safe-area-inset-top));
-}
-html.tv .pl-side-head {
-  padding-top: 1.6rem;
+  padding: 1rem 1rem 0.5rem;
+  padding-top: calc(1rem + env(safe-area-inset-top));
 }
 .pl-side-title {
   font-size: 1.05rem;
@@ -4411,7 +4408,7 @@ html.kbd .pl-cat:focus {
 .pl-side-search {
   position: relative;
   flex-shrink: 0;
-  margin: 0 1rem 0.7rem;
+  margin: 0 0.8rem 0.4rem;
 }
 /* Pendant une recherche, les catégories s'effacent : les résultats prennent toute la largeur */
 .pl-side.searching .pl-cats {
