@@ -7,6 +7,8 @@ import { app } from './app';
 
 function start(): void {
   app.start(document.getElementById('app')!);
+  // Diagnostic depuis la console du navigateur : sp.catalog, sp.engine.stats()…
+  (window as any).sp = app;
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
