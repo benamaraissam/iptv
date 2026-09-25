@@ -3,9 +3,10 @@ import { app } from '../app';
 import type { Channel, Playable } from '../types';
 import type { Action } from '../platform';
 import { isTV } from '../platform';
-import { h, clear } from '../ui/dom';
+import { h, clear, pagedList } from '../ui/dom';
 import { icon } from '../ui/icons';
-import { btn, chooseOption, iconBtn } from '../ui/components';
+import { art, btn, chooseOption, iconBtn } from '../ui/components';
+import { channelNumber } from './common';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
@@ -75,6 +76,72 @@ export function player(params: Params): Screen {
   const errorBox = h('div', { class: 'pl-error hidden' });
   const numEntry = h('div', { class: 'pl-num hidden' });
   el.appendChild(h('div', { class: 'pl-overlay' }, top, bottom));
+
+  // ───── Direct : liste des chaînes en barre latérale gauche (avec les contrôles) ─────
+  const side = isLive && queue.length > 1 ? buildChannelSidebar() : null;
+  let sideHover = false;
+  function buildChannelSidebar(): HTMLElement {
+    const scroller = h('div', { class: 'pl-side-list scroll' });
+    const inner = h('div');
+    scroller.appendChild(inner);
+    const row = (q: Playable, i: number) => {
+      const ch = cat.get(q.id) as Channel | undefined;
+      const prog = h('div', { class: 'ps-prog', text: q.subtitle || '' });
+      if (ch && cat.epg.available) {
+        const set = (l: import('../types').Program[]) => {
+          const p = currentProgram(l);
+          if (p) prog.textContent = p.title;
+        };
+        const cached = cat.epg.peek(ch);
+        if (cached) set(cached);
+        else cat.epg.programs(ch).then(set, () => undefined);
+      }
+      return h(
+        'button',
+        {
+          type: 'button',
+          class: 'ps-row focusable' + (i === index ? ' current' : ''),
+          on: {
+            click: (ev: Event) => {
+              ev.stopPropagation();
+              if (i !== index) jump(i);
+            },
+          },
+        },
+        h('span', { class: 'ps-num', text: ch ? channelNumber(ch) : String(i + 1) }),
+        h('div', { class: 'ps-logo' }, art(q.poster, q.title, 'contain')),
+        h('div', { class: 'ps-text' }, h('div', { class: 'ps-name', text: q.title }), prog),
+        i === index ? h('span', { class: 'ch-eq' }, h('i'), h('i'), h('i')) : null,
+      );
+    };
+    const pager = pagedList(scroller, inner, queue, row, 40);
+    pager.renderUntil(index);
+    const aside = h(
+      'aside',
+      { class: 'pl-side' },
+      h('div', { class: 'pl-side-head' }, h('span', { class: 'pl-side-title', text: t('channels') }), h('span', { class: 'pl-side-count', text: String(queue.length) })),
+      scroller,
+    );
+    // En entrant dans la liste (télécommande), on arrive sur la chaîne en cours.
+    aside.addEventListener('focusin', (ev) => {
+      const from = (ev as FocusEvent).relatedTarget as Node | null;
+      if (from && aside.contains(from)) return;
+      const cur = inner.querySelector<HTMLElement>('.current');
+      if (cur && ev.target !== cur) focusEl(cur);
+    });
+    aside.addEventListener('mouseenter', () => (sideHover = true));
+    aside.addEventListener('mouseleave', () => (sideHover = false));
+    // Chaîne en cours visible (au premier affichage).
+    window.setTimeout(() => {
+      const cur = inner.querySelector<HTMLElement>('.current');
+      if (cur) scroller.scrollTop = Math.max(0, cur.offsetTop - scroller.clientHeight / 3);
+    }, 0);
+    return aside;
+  }
+  if (side) {
+    el.appendChild(side);
+    el.classList.add('has-side');
+  }
   // Bouton « Retour » toujours visible (souris / tactile), même quand les contrôles sont masqués.
   el.appendChild(
     h(
@@ -140,7 +207,7 @@ export function player(params: Params): Screen {
       extras.appendChild(h('button', { type: 'button', class: 'pl-extra focusable', on: { click: fn } }, icon(ic), h('span', { text: label })));
     if (item.kind === 'episode' && hasQueue) add('episodes', t('episodes'), pickEpisode);
     add('info', t('stats'), toggleStats);
-    if (isLive && hasQueue) add('episodes', t('channels'), pickEpisode);
+    if (isLive && hasQueue && !side) add('episodes', t('channels'), pickEpisode);
     const audio = engine.audioTracks();
     if (audio.list.length > 1) {
       add('audio', t('audio'), async () => {
@@ -256,6 +323,12 @@ export function player(params: Params): Screen {
   };
   const hideOverlay = () => {
     if (!errorBox.classList.contains('hidden') || video.paused) return;
+    // On parcourt la liste des chaînes : on ne la ferme pas sous le curseur / le focus.
+    if (side && (sideHover || side.contains(document.activeElement))) {
+      window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(hideOverlay, 5000);
+      return;
+    }
     el.classList.remove('show-ui');
     (document.activeElement as HTMLElement | null)?.blur?.();
   };

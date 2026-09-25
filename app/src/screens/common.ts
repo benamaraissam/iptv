@@ -5,6 +5,7 @@ import { icon, logoMark, type IconName } from '../ui/icons';
 import { openModal } from '../ui/components';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
+import { hasGoodImage } from '../imgcache';
 import { formatTime, t } from '../i18n';
 
 let clockTimer: number | undefined;
@@ -171,11 +172,14 @@ function pickCategory(groups: string[], selected: string | null, countOf: (g: st
   });
 }
 
-/** Tri stable : les éléments qui ont une image passent devant. */
-export function imageFirst<T>(list: T[], has: (x: T) => unknown): T[] {
+/**
+ * Tri stable : les éléments dont l'image est affichable passent devant.
+ * `img` renvoie le lien de l'image ; un lien connu comme cassé compte comme « pas d'image ».
+ */
+export function imageFirst<T>(list: T[], img: (x: T) => string | undefined | null): T[] {
   const withImg: T[] = [];
   const without: T[] = [];
-  for (const x of list) (has(x) ? withImg : without).push(x);
+  for (const x of list) (hasGoodImage(img(x)) ? withImg : without).push(x);
   return withImg.concat(without);
 }
 

@@ -1,4 +1,5 @@
 import { h, detach, clear } from './dom';
+import { hasGoodImage, markBadImage } from '../imgcache';
 import { icon, type IconName } from './icons';
 import { focusEl, focusFirst, getNavRoot, setNavRoot } from '../navigation';
 import { t } from '../i18n';
@@ -116,19 +117,45 @@ export function art(src: string | undefined, name: string, cls = ''): HTMLElemen
   });
   const fallback = h('span', { class: 'art-initials', text: initials(name) });
   box.appendChild(fallback);
-  if (src) {
+  // Lien déjà connu comme cassé : on n'essaie même pas (pas de clignotement).
+  if (src && hasGoodImage(src)) {
+    const fail = () => {
+      detach(img);
+      markBadImage(src);
+      sendToBack(box);
+    };
     const img = h('img', {
       alt: '',
       loading: 'lazy',
       on: {
-        load: () => box.classList.add('loaded'),
-        error: () => detach(img),
+        // Certaines playlists renvoient une image vide de 1 × 1 pixel.
+        load: () => (img.naturalWidth > 1 ? box.classList.add('loaded') : fail()),
+        error: fail,
       },
     });
     img.src = src;
     box.appendChild(img);
   }
   return box;
+}
+
+const SORTED_PARENTS = /(^| )(rail-track|poster-grid|channel-grid)( |$)/;
+
+/**
+ * L'image d'une carte n'a pas pu s'afficher : la carte passe en fin de rangée / de grille,
+ * pour que les éléments avec une vraie image restent devant. (Pas pour le Top 10 numéroté,
+ * ni pour l'élément qui a le focus.)
+ */
+function sendToBack(box: HTMLElement): void {
+  let node: HTMLElement | null = box.parentElement;
+  while (node && !node.classList.contains('card') && !node.classList.contains('ch-row')) node = node.parentElement;
+  if (!node || node.classList.contains('card-top') || node === document.activeElement) return;
+  const parent = node.parentElement;
+  if (!parent) return;
+  const list = parent.classList.contains('ch-row') ? null : parent;
+  if (list && (SORTED_PARENTS.test(list.className) || (list.parentElement && list.parentElement.classList.contains('ch-list')) || list.classList.contains('ch-list'))) {
+    list.appendChild(node);
+  }
 }
 
 // ───────────── Cartes ─────────────

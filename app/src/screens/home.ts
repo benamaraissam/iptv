@@ -9,6 +9,7 @@ import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
 import { channelNumber, clock, imageFirst, prefetchOnIntent } from './common';
+import { hasGoodImage } from '../imgcache';
 
 type Item = Channel | Show;
 /** Ce que la grande affiche peut présenter. */
@@ -57,9 +58,11 @@ export function home(): Screen {
     featured.push(hi);
   };
   if (cont[0] && cont[0].poster) feature({ kind: 'entry', e: cont[0] });
-  for (const x of recent.filter(backdropOf).slice(0, 4)) feature({ kind: 'item', x });
-  for (const x of top10.filter(backdropOf).slice(0, 4)) feature({ kind: 'item', x });
-  for (const x of vod.filter(backdropOf).slice(0, 4)) feature({ kind: 'item', x });
+  // Mise en avant : uniquement des visuels qui s'affichent vraiment.
+  const goodBackdrop = (x: Item) => hasGoodImage(backdropOf(x));
+  for (const x of recent.filter(goodBackdrop).slice(0, 4)) feature({ kind: 'item', x });
+  for (const x of top10.filter(goodBackdrop).slice(0, 4)) feature({ kind: 'item', x });
+  for (const x of vod.filter(goodBackdrop).slice(0, 4)) feature({ kind: 'item', x });
   if (featured.length < 3) {
     // Playlist de chaînes : favoris, dernières regardées, puis une chaîne par catégorie.
     const liveIds: Record<string, boolean> = {};
