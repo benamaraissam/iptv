@@ -155,6 +155,7 @@ const fr = {
   reconnecting: 'Reconnexion…',
   lowQualityMode: 'qualité réduite',
   nextChannel: 'Chaîne suivante',
+  hideChannels: 'Masquer la liste',
   // Profil / paramètres
   account: 'Compte',
   playlists: 'Mes playlists',
@@ -345,6 +346,7 @@ const en: Dict = {
   reconnecting: 'Reconnecting…',
   lowQualityMode: 'reduced quality',
   nextChannel: 'Next channel',
+  hideChannels: 'Hide list',
   account: 'Account',
   playlists: 'My playlists',
   connectedDevices: 'Connections',

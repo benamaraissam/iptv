@@ -4049,11 +4049,11 @@ html.kbd .lib-tabs .chip:focus {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 60%;
-  max-width: 20rem;
+  width: 82%;
+  max-width: 33rem;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(90deg, rgba(6, 10, 28, 0.94) 0%, rgba(6, 10, 28, 0.86) 85%, rgba(6, 10, 28, 0.6) 100%);
+  background: linear-gradient(90deg, rgba(6, 10, 28, 0.96) 0%, rgba(6, 10, 28, 0.9) 85%, rgba(6, 10, 28, 0.7) 100%);
   border-right: 1px solid var(--border);
   opacity: 0;
   pointer-events: none;
@@ -4063,10 +4063,10 @@ html.kbd .lib-tabs .chip:focus {
   transition: opacity 0.25s, transform 0.25s;
 }
 .layout-wide .pl-side {
-  width: 24rem;
+  width: 33rem;
   max-width: none;
 }
-.player.show-ui .pl-side {
+.player.side-open .pl-side {
   opacity: 1;
   pointer-events: auto;
   -webkit-transform: none;
@@ -4167,15 +4167,107 @@ html.kbd .ps-row:focus {
   box-shadow: 0 0 0 0.12rem var(--primary-2);
 }
 /* Contrôles décalés pour ne pas passer sous la liste (grand écran) */
-.layout-wide .player.has-side .pl-top,
-.layout-wide .player.has-side .pl-bottom {
-  padding-left: 25.5rem;
+.layout-wide .player.side-open .pl-top,
+.layout-wide .player.side-open .pl-bottom {
+  padding-left: 34.5rem;
 }
-.layout-wide .player.has-side .pl-heading {
+.layout-wide .player.side-open .pl-heading {
   margin-left: 0.8rem;
 }
-.layout-wide .player.has-side .pl-back {
+.layout-wide .player.side-open .pl-back,
+.player.side-open .pl-exit,
+.player.side-open .pl-side-tab {
   display: none;
+}
+.pl-side-head .pl-side-count {
+  margin-left: 0.5rem;
+  margin-right: auto;
+}
+.pl-side-close {
+  width: 2.2rem;
+  height: 2.2rem;
+  margin: -0.4rem -0.4rem -0.4rem 0;
+}
+.pl-side-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.pl-cats {
+  width: 11rem;
+  flex-shrink: 0;
+  padding: 0 0.4rem 1rem 0.6rem;
+  border-right: 1px solid var(--border);
+}
+.pl-cat {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 2.6rem;
+  margin-bottom: 0.15rem;
+  padding: 0 0.6rem;
+  border-radius: 0.6rem;
+  color: var(--text-2);
+  font-size: 0.82rem;
+  text-align: left;
+}
+.pl-cat .ic {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+.pl-cat-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pl-cat.active {
+  background: rgba(47, 134, 255, 0.18);
+  color: var(--primary-2);
+}
+.pl-cat:hover,
+html.tv .pl-cat:focus,
+html.kbd .pl-cat:focus {
+  background: linear-gradient(90deg, rgba(42, 120, 255, 0.55), rgba(110, 92, 255, 0.35));
+  color: #fff;
+}
+.pl-side-list {
+  flex: 1;
+  min-width: 0;
+}
+/* Onglet pour rouvrir la liste (souris / tactile) */
+.pl-side-tab {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.9rem 0.6rem 0.7rem;
+  border-radius: 0 2rem 2rem 0;
+  background: rgba(6, 10, 28, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 0;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0.7;
+  -webkit-transform: translateY(-50%);
+  transform: translateY(-50%);
+}
+.pl-side-tab .ic {
+  margin-right: 0.4rem;
+}
+.pl-side-tab:hover {
+  opacity: 1;
+  background: rgba(47, 134, 255, 0.6);
+}
+html.tv .pl-side-tab {
+  display: none;
+}
+.layout-compact .pl-cats {
+  width: 8.5rem;
 }
 
 /* Images : masquées jusqu'au chargement complet, animation en attendant, puis fondu */

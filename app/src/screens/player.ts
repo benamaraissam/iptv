@@ -6,7 +6,7 @@ import { isTV } from '../platform';
 import { h, clear, pagedList } from '../ui/dom';
 import { icon } from '../ui/icons';
 import { art, btn, chooseOption, iconBtn } from '../ui/components';
-import { channelNumber } from './common';
+import { channelNumber, groupIcon } from './common';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
@@ -20,6 +20,10 @@ interface Params {
   index: number;
   resume: boolean;
 }
+
+/** Liste des chaînes en plein écran : catégorie choisie et visibilité, conservées d'une chaîne à l'autre. */
+let sideGroup: string | null | 'fav' = null;
+let sideOpen = true;
 
 /** 20. Lecteur plein écran. */
 export function player(params: Params): Screen {
@@ -80,16 +84,24 @@ export function player(params: Params): Screen {
   el.appendChild(h('div', { class: 'pl-overlay' }, top, bottom));
 
   // ───── Direct : liste des chaînes en barre latérale gauche (avec les contrôles) ─────
-  const side = isLive && queue.length > 1 ? buildChannelSidebar() : null;
+  // ───── Liste des chaînes (plein écran) ─────
+  // Catégories à gauche, chaînes à droite. Elle reste affichée tant qu'on ne la ferme pas
+  // (bouton ✕, touche jaune ou Retour) ; un onglet « Chaînes » permet de la rouvrir.
+  const allLive = isLive ? cat.live.filter((c) => !app.isLocked(c.group)) : [];
+  const side = isLive && allLive.length > 1 ? buildChannelSidebar() : null;
   let sideHover = false;
   function buildChannelSidebar(): HTMLElement {
+    const groups: string[] = [];
+    const seen: Record<string, true> = {};
+    for (const c of allLive) if (!seen[c.group]) (seen[c.group] = true), groups.push(c.group);
     const scroller = h('div', { class: 'pl-side-list scroll' });
     const inner = h('div');
     scroller.appendChild(inner);
-    const row = (q: Playable, i: number) => {
-      const ch = cat.get(q.id) as Channel | undefined;
-      const prog = h('div', { class: 'ps-prog', text: q.subtitle || '' });
-      if (ch && cat.epg.available) {
+    const listOf = (g: string | null | 'fav'): Channel[] =>
+      g === 'fav' ? allLive.filter((c) => app.inMyList(c.id)) : g ? allLive.filter((c) => c.group === g) : allLive;
+    const row = (ch: Channel) => {
+      const prog = h('div', { class: 'ps-prog', text: ch.group });
+      if (cat.epg.available) {
         const set = (l: import('../types').Program[]) => {
           const p = currentProgram(l);
           if (p) prog.textContent = p.title;
@@ -98,51 +110,119 @@ export function player(params: Params): Screen {
         if (cached) set(cached);
         else cat.epg.programs(ch).then(set, () => undefined);
       }
+      const current = ch.id === item.id;
       return h(
         'button',
         {
           type: 'button',
-          class: 'ps-row focusable' + (i === index ? ' current' : ''),
+          class: 'ps-row focusable' + (current ? ' current' : ''),
           on: {
             click: (ev: Event) => {
               ev.stopPropagation();
-              if (i !== index) jump(i);
+              if (!current) app.playChannel(ch, listOf(sideGroup));
             },
           },
         },
-        h('span', { class: 'ps-num', text: ch ? channelNumber(ch) : String(i + 1) }),
-        h('div', { class: 'ps-logo' }, art(q.poster, q.title, 'contain')),
-        h('div', { class: 'ps-text' }, h('div', { class: 'ps-name', text: q.title }), prog),
-        i === index ? h('span', { class: 'ch-eq' }, h('i'), h('i'), h('i')) : null,
+        h('span', { class: 'ps-num', text: channelNumber(ch) }),
+        h('div', { class: 'ps-logo' }, art(ch.logo, ch.name, 'contain')),
+        h('div', { class: 'ps-text' }, h('div', { class: 'ps-name', text: ch.name }), prog),
+        current ? h('span', { class: 'ch-eq' }, h('i'), h('i'), h('i')) : null,
       );
     };
-    const pager = pagedList(scroller, inner, queue, row, 40);
-    pager.renderUntil(index);
+    const count = h('span', { class: 'pl-side-count' });
+    const renderList = () => {
+      clear(inner);
+      const list = listOf(sideGroup);
+      count.textContent = String(list.length);
+      const pager = pagedList(scroller, inner, list, row, 40);
+      const at = list.findIndex((c) => c.id === item.id);
+      if (at >= 0) pager.renderUntil(at);
+      window.setTimeout(() => {
+        const cur = inner.querySelector<HTMLElement>('.current');
+        scroller.scrollTop = cur ? Math.max(0, cur.offsetTop - scroller.clientHeight / 3) : 0;
+      }, 0);
+    };
+    // Colonne des catégories
+    const cats = h('div', { class: 'pl-cats scroll' });
+    const catBtn = (g: string | null | 'fav', label: string, ic: import('../ui/icons').IconName) => {
+      const b = h(
+        'button',
+        {
+          type: 'button',
+          class: 'pl-cat focusable' + (sideGroup === g ? ' active' : ''),
+          on: {
+            click: (ev: Event) => {
+              ev.stopPropagation();
+              sideGroup = g;
+              const all = cats.querySelectorAll('.pl-cat');
+              for (let i = 0; i < all.length; i++) all[i].classList.remove('active');
+              b.classList.add('active');
+              renderList();
+            },
+          },
+        },
+        icon(ic),
+        h('span', { class: 'pl-cat-name', text: label }),
+      );
+      return b;
+    };
+    cats.appendChild(catBtn(null, t('all'), 'live'));
+    cats.appendChild(catBtn('fav', t('favorites'), 'heart'));
+    for (const g of groups) cats.appendChild(catBtn(g, g, groupIcon(g)));
+    if (sideGroup && sideGroup !== 'fav' && !seen[sideGroup]) sideGroup = null;
+    renderList();
     const aside = h(
       'aside',
       { class: 'pl-side' },
-      h('div', { class: 'pl-side-head' }, h('span', { class: 'pl-side-title', text: t('channels') }), h('span', { class: 'pl-side-count', text: String(queue.length) })),
-      scroller,
+      h(
+        'div',
+        { class: 'pl-side-head' },
+        h('span', { class: 'pl-side-title', text: t('channels') }),
+        count,
+        iconBtn('close', t('hideChannels'), () => setSide(false), 'pl-side-close'),
+      ),
+      h('div', { class: 'pl-side-body' }, cats, scroller),
     );
     // En entrant dans la liste (télécommande), on arrive sur la chaîne en cours.
-    aside.addEventListener('focusin', (ev) => {
+    scroller.addEventListener('focusin', (ev) => {
       const from = (ev as FocusEvent).relatedTarget as Node | null;
-      if (from && aside.contains(from)) return;
+      if (from && scroller.contains(from)) return;
       const cur = inner.querySelector<HTMLElement>('.current');
       if (cur && ev.target !== cur) focusEl(cur);
     });
     aside.addEventListener('mouseenter', () => (sideHover = true));
     aside.addEventListener('mouseleave', () => (sideHover = false));
-    // Chaîne en cours visible (au premier affichage).
-    window.setTimeout(() => {
-      const cur = inner.querySelector<HTMLElement>('.current');
-      if (cur) scroller.scrollTop = Math.max(0, cur.offsetTop - scroller.clientHeight / 3);
-    }, 0);
     return aside;
   }
+  const setSide = (open: boolean) => {
+    if (!side) return;
+    sideOpen = open;
+    el.classList.toggle('side-open', open);
+    if (open) focusEl(side.querySelector<HTMLElement>('.ps-row.current') || side.querySelector<HTMLElement>('.ps-row'));
+    else if (side.contains(document.activeElement)) focusEl(playBtn);
+  };
   if (side) {
     el.appendChild(side);
     el.classList.add('has-side');
+    // Onglet toujours visible pour rouvrir la liste une fois fermée (souris / tactile).
+    el.appendChild(
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'pl-side-tab',
+          on: {
+            click: (ev: Event) => {
+              ev.stopPropagation();
+              setSide(true);
+            },
+          },
+        },
+        icon('grid'),
+        h('span', { text: t('channels') }),
+      ),
+    );
+    if (sideOpen) el.classList.add('side-open');
   }
   // Bouton « Retour » toujours visible (souris / tactile), même quand les contrôles sont masqués.
   el.appendChild(
@@ -541,6 +621,10 @@ export function player(params: Params): Screen {
           return false;
         case 'left':
         case 'right':
+          if (action === 'left' && side && !sideOpen && isLive && !uiVisible) {
+            setSide(true);
+            return true;
+          }
           if (!isLive && (!uiVisible || onSeekbar)) {
             engine.seekBy(action === 'left' ? -10 : 10);
             updateTime();
@@ -570,6 +654,15 @@ export function player(params: Params): Screen {
         case 'blue':
           toggleStats();
           return true;
+        case 'yellow':
+          setSide(!sideOpen);
+          return true;
+        case 'back':
+          if (side && sideOpen && (side.contains(document.activeElement) || isTV)) {
+            setSide(false);
+            return true;
+          }
+          return false;
         case 'stop':
           app.back();
           return true;
