@@ -78,6 +78,35 @@ npm run cap:android   # build + sync + ouvre Android Studio
 Identifiant : `com.streampro.app`. Le manifeste autorise les flux HTTP et déclare
 la compatibilité **Android TV** (bannière `res/drawable/banner.png`).
 
+## Fire TV / Android TV
+
+L'application est déclarée comme appli TV (`LEANBACK_LAUNCHER`, bannière, pas d'écran tactile
+requis). `MainActivity` détecte le mode télévision (Fire TV, Android TV, Google TV), passe
+l'interface en mode « 10 pieds » et relaie au JavaScript les touches de la télécommande que la
+WebView ne transmet pas (lecture/pause, avance/retour rapide, Menu, chaîne +/−, couleurs).
+
+Fire TV Stick (Fire OS 6 ou plus : Stick 4K, Lite, 3ᵉ génération, Cube) :
+
+```bash
+# Sur le Stick : Paramètres → Mon Fire TV → Options développeur → Débogage ADB : activé
+adb connect <IP_du_Stick>:5555
+cd app && npm run cap:sync
+cd android && ./gradlew assembleDebug
+adb -s <IP_du_Stick>:5555 install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s <IP_du_Stick>:5555 shell monkey -p com.streampro.app 1     # lance l'app
+adb -s <IP_du_Stick>:5555 logcat | grep -i "Interface bloquée"    # diagnostic des blocages
+```
+
+Émulateur Android TV : Android Studio → Device Manager → *Create device* → catégorie **TV**
+(« Television 1080p », API 31+), puis `npx cap run android` et choisir cet appareil.
+
+Télécommande Fire TV : D-pad = navigation, Sélection = Entrée, Retour = retour (ferme d'abord
+la liste des chaînes ou un menu), Menu = liste des chaînes / favori (touche jaune),
+Lecture/Pause, ◀◀ / ▶▶ = chaîne précédente / suivante en direct, −30 s / +30 s pour un film.
+
+Test sans appareil : `http://localhost:3000/?tv=1` dans Chrome active le mode TV au clavier
+(flèches, Entrée, Échap = Retour, PageUp/PageDown = chaîne +/−, F1–F4 = touches de couleur).
+
 ## iOS
 
 Prérequis : un Mac avec Xcode.

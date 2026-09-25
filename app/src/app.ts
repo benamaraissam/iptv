@@ -253,6 +253,13 @@ class AppCore {
     }
     const action = keyToAction(e);
     if (!action) return;
+    this.handleAction(action, e);
+  }
+
+  /** Action d'une touche (clavier, télécommande TV, ou relayée par l'activité Android). */
+  private handleAction(action: Action, e: KeyboardEvent): void {
+    // Fire TV : la touche Menu tient lieu de touche jaune (liste des chaînes, favoris).
+    if (action === 'menu') action = 'yellow';
     if (!isTV) document.documentElement.classList.add('kbd');
     const active = document.activeElement as HTMLElement | null;
     const inInput = !!active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA');
@@ -296,8 +303,15 @@ class AppCore {
 
   private async bindAndroidBack(): Promise<void> {
     if (platform !== 'android') return;
+    // Touches relayées par MainActivity (média, menu, chaîne +/−, couleurs).
+    window.addEventListener('spRemote', (ev: Event) => {
+      // Capacitor copie les champs du message sur l'événement lui-même.
+      const a = ((ev as any).action || ((ev as CustomEvent).detail && (ev as CustomEvent).detail.action)) as Action | undefined;
+      if (a) this.handleAction(a, new KeyboardEvent('keydown'));
+    });
     const { App: CapApp } = await import('@capacitor/app');
-    CapApp.addListener('backButton', () => this.back());
+    // Retour matériel : même chemin que la touche Retour (ferme d'abord la liste ou le menu).
+    CapApp.addListener('backButton', () => this.handleAction('back', new KeyboardEvent('keydown')));
   }
 
   // ───────────────────────── Playlist ─────────────────────────

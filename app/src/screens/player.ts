@@ -858,6 +858,16 @@ export function player(params: Params): Screen {
         case 'blue':
           toggleStats();
           return true;
+        case 'rewind':
+        case 'forward':
+          if (isLive) {
+            go(action === 'forward' ? 1 : -1);
+            return true;
+          }
+          engine.seekBy(action === 'forward' ? 30 : -30);
+          updateTime();
+          showOverlay();
+          return true;
         case 'yellow':
           setSide(!sideOpen);
           return true;

@@ -22,7 +22,21 @@ function detect(): PlatformName {
 }
 
 export const platform: PlatformName = detect();
-export const isTV = platform === 'tizen' || platform === 'webos';
+
+/**
+ * Télévision Android (Android TV, Google TV, Fire TV) : l'activité native ajoute
+ * « StreamProTV » à l'agent utilisateur quand le système se déclare en mode télévision ;
+ * les Fire TV portent aussi un modèle « AFT… ». `?tv=1` force le mode TV dans un navigateur
+ * (test de la navigation à la télécommande au clavier).
+ */
+function androidTvHint(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (ua.indexOf('StreamProTV') !== -1 || /\bAFT[A-Z0-9]+\b/.test(ua) || /Android TV|BRAVIA|SHIELD/i.test(ua)) return true;
+  return typeof location !== 'undefined' && /[?&]tv=1\b/.test(location.search);
+}
+
+export const isTV = platform === 'tizen' || platform === 'webos' || androidTvHint();
 export const isNative = Capacitor.isNativePlatform();
 
 /** Actions logiques, indépendantes de la télécommande ou du clavier. */
@@ -43,6 +57,9 @@ export type Action =
   | 'green'
   | 'yellow'
   | 'blue'
+  | 'rewind'
+  | 'forward'
+  | 'menu'
   | 'digit';
 
 const KEYMAP: Record<number, Action> = {
@@ -66,6 +83,16 @@ const KEYMAP: Record<number, Action> = {
   404: 'green',
   405: 'yellow',
   406: 'blue',
+  // Android / Fire TV (WebView) et navigateurs : touches média et Menu
+  179: 'playpause',
+  227: 'rewind',
+  228: 'forward',
+  93: 'menu',
+  // Test au clavier (?tv=1) : F1–F4 = touches de couleur
+  112: 'red',
+  113: 'green',
+  114: 'yellow',
+  115: 'blue',
 };
 
 export function keyToAction(e: KeyboardEvent): Action | null {

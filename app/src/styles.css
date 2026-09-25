@@ -32,6 +32,10 @@ html.tv {
   /* 1920 px → 24 px, 1280 px → 16 px : interface « 10 pieds ». */
   font-size: 1.25vw;
 }
+/* Android TV / Fire TV : les téléviseurs rognent les bords (overscan) → marge de sécurité */
+html.tv.platform-android body {
+  padding: 2vh 2.5vw;
+}
 
 * {
   box-sizing: border-box;
