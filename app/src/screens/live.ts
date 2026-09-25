@@ -11,6 +11,7 @@ import * as store from '../storage';
 import { formatTime, t } from '../i18n';
 import { brandClock, categoryButton, channelNumber, imageFirst } from './common';
 import { mark, timed } from '../diag';
+import { lowPower } from '../platform';
 
 /**
  * 9 / 13. TV en direct : liste compacte de chaînes + moniteur d'aperçu.
@@ -32,7 +33,7 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   let infoTimer: number | undefined;
   let destroyed = false;
   // État des chaînes vérifié automatiquement dès l'ouverture de la liste (toutes playlists).
-  const AUTO_CHECK_MAX = 400;
+  const AUTO_CHECK_MAX = lowPower ? 60 : 400;
 
   // ───── Données ─────
   const favIds = (): Record<string, boolean> => {

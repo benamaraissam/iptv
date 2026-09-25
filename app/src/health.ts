@@ -1,5 +1,5 @@
 import { CapacitorHttp } from '@capacitor/core';
-import { isNative, platform } from './platform';
+import { isNative, lowPower, platform } from './platform';
 import { proxied } from './http';
 import { mark } from './diag';
 
@@ -11,7 +11,8 @@ export type Health = 'unknown' | 'checking' | 'ok' | 'down';
 
 const TTL = 10 * 60000;
 const TIMEOUT = 12000;
-const MAX_PARALLEL = 3;
+// Appareil peu puissant : une seule vérification à la fois (CPU et réseau partagés avec la vidéo).
+const MAX_PARALLEL = lowPower ? 1 : 3;
 
 const cache = new Map<string, { s: Health; at: number }>();
 const listeners: ((url: string, s: Health) => void)[] = [];

@@ -37,6 +37,22 @@ function androidTvHint(): boolean {
 }
 
 export const isTV = platform === 'tizen' || platform === 'webos' || androidTvHint();
+
+/**
+ * Appareil peu puissant (Fire TV Stick, box Android TV d'entrée de gamme, vieille TV) :
+ * pas de flous ni d'animations coûteuses, moins de requêtes en parallèle.
+ * `?lite=1` force ce mode dans un navigateur.
+ */
+function lowPowerHint(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  if (typeof location !== 'undefined' && /[?&]lite=1\b/.test(location.search)) return true;
+  if (isTV && platform !== 'web') return true;
+  const mem = (navigator as any).deviceMemory as number | undefined;
+  const cpu = navigator.hardwareConcurrency || 0;
+  return (!!mem && mem <= 2) || (cpu > 0 && cpu <= 2);
+}
+
+export const lowPower = lowPowerHint();
 export const isNative = Capacitor.isNativePlatform();
 
 /** Actions logiques, indépendantes de la télécommande ou du clavier. */

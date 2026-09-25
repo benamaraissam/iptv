@@ -1,4 +1,5 @@
 import type { Channel, Program } from './types';
+import { lowPower } from './platform';
 import { mark } from './diag';
 import { fetchText } from './http';
 
@@ -159,7 +160,7 @@ export class EpgStore {
 
   // Limite à 4 requêtes simultanées pour ne pas saturer le serveur.
   private slot(): Promise<void> {
-    if (this.running < 6) {
+    if (this.running < (lowPower ? 2 : 6)) {
       this.running++;
       return Promise.resolve();
     }
