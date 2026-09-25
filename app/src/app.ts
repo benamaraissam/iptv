@@ -1,5 +1,6 @@
 import type { Channel, ItemRef, Playable, Playlist, Show } from './types';
 import { Catalog } from './catalog';
+import { describeNetworkError } from './http';
 import * as store from './storage';
 import { Engine } from './player';
 import { h, clear, toast, setLoading } from './ui/dom';
@@ -305,7 +306,11 @@ class AppCore {
       store.updateSettings({ activePlaylist: p.id });
       return true;
     } catch (e) {
-      toast(t('loadError') + ' : ' + (e as Error).message, true);
+      const m = describeNetworkError(e);
+      toast(
+        t('loadError') + ' : ' + (m === 'network' ? t('errNetwork') : /identifiants|auth/i.test(m) ? t('errAuth') : m),
+        true,
+      );
       return false;
     } finally {
       setLoading(false);

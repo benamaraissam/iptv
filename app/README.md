@@ -61,8 +61,11 @@ npm test           # tests unitaires (M3U, séries, XMLTV)
 npm run build      # build de production dans dist/
 ```
 
-> En navigateur, certaines playlists échouent à cause du CORS : c'est normal,
-> les versions Android/iOS/TV ne sont pas concernées.
+> **Navigateur et serveurs IPTV (CORS)** : les serveurs Xtream / M3U n'autorisent pas
+> les appels depuis une page web. En `npm run dev` / `npm run preview`, un petit proxy
+> intégré (`scripts/dev-proxy.mjs`, route `/__proxy`) relaie ces appels : connexion Xtream,
+> catalogue, flux HLS et vérification des chaînes fonctionnent donc dans Chrome.
+> Les applications Android, iOS, Tizen et webOS n'en ont pas besoin.
 
 ## Android
 

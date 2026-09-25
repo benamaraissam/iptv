@@ -32,6 +32,8 @@ const fr = {
   legal: 'StreamPro est un lecteur : aucun contenu n’est fourni. Utilisez uniquement des flux que vous avez le droit de regarder.',
   loading: 'Chargement…',
   loadError: 'Impossible de charger la playlist',
+  errNetwork: 'serveur injoignable. Vérifiez l’adresse (http://, port) et votre connexion.',
+  errAuth: 'nom d’utilisateur ou mot de passe refusé par le serveur.',
   // Navigation
   home: 'Accueil',
   liveTv: 'TV en direct',
@@ -194,6 +196,8 @@ const en: Dict = {
   legal: 'StreamPro is a player: no content is provided. Only use streams you are allowed to watch.',
   loading: 'Loading…',
   loadError: 'Unable to load the playlist',
+  errNetwork: 'server unreachable. Check the address (http://, port) and your connection.',
+  errAuth: 'username or password rejected by the server.',
   home: 'Home',
   liveTv: 'Live TV',
   movies: 'Movies',

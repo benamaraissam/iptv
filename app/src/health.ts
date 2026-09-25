@@ -1,5 +1,6 @@
 import { CapacitorHttp } from '@capacitor/core';
 import { isNative, platform } from './platform';
+import { proxied } from './http';
 
 /**
  * État des flux : vérifié par une petite requête (manifeste HLS ou en-têtes),
@@ -134,7 +135,7 @@ function xhrProbe(url: string): Promise<Health | 'blocked'> {
     // Statut 0 : réseau coupé ou requête refusée par le serveur (CORS).
     xhr.onerror = () => finish('blocked');
     try {
-      xhr.open('GET', url, true);
+      xhr.open('GET', proxied(url), true);
       xhr.send();
     } catch {
       finish('blocked');

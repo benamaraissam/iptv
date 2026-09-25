@@ -1,5 +1,6 @@
 import type Hls from 'hls.js';
 import { setHealth } from './health';
+import { proxied } from './http';
 
 export interface Track {
   id: string;
@@ -86,6 +87,11 @@ export class Engine {
           backBufferLength: 30,
           startPosition: startAt > 0 ? startAt : -1,
           capLevelToPlayerSize: this.quality === 'auto',
+          // Navigateur de développement : manifestes et segments passent par le proxy (CORS).
+          xhrSetup: (xhr: XMLHttpRequest, u: string) => {
+            const p = proxied(u);
+            if (p !== u) xhr.open('GET', p, true);
+          },
         });
         this.hls = hls;
         let mediaRecoveries = 0;
