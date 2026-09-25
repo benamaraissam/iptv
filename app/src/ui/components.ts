@@ -96,7 +96,8 @@ function hashStr(s: string): number {
   return Math.abs(x);
 }
 
-export function initials(name: string): string {
+export function initials(raw: string): string {
+  const name = raw ? String(raw) : '';
   const words = name
     .replace(/[^\wÀ-￿]+/g, ' ')
     .split(' ')

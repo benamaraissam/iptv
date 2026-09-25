@@ -68,6 +68,26 @@ async function get<T>(url: string): Promise<T> {
   }
 }
 
+/**
+ * Les panels Xtream renvoient souvent des champs vides (null), des nombres à la place
+ * de textes, ou des tableaux : tout texte passe par ici avant d'entrer dans l'app.
+ */
+function str(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return v.map(str).filter(Boolean).join(', ');
+  return '';
+}
+
+function opt(v: unknown): string | undefined {
+  return str(v) || undefined;
+}
+
+function list<T>(v: unknown): T[] {
+  return Array.isArray(v) ? (v as T[]).filter((x) => x && typeof x === 'object') : [];
+}
+
 function num(v: unknown): number | undefined {
   const n = typeof v === 'number' ? v : parseFloat(String(v || ''));
   return isFinite(n) && n > 0 ? n : undefined;
@@ -78,13 +98,13 @@ function year(date?: string): string | undefined {
   return m ? m[1] : undefined;
 }
 
-function firstImage(v: string[] | string | undefined): string | undefined {
-  if (!v) return undefined;
-  if (typeof v === 'string') return v || undefined;
-  return v[0] || undefined;
+function firstImage(v: unknown): string | undefined {
+  if (Array.isArray(v)) return opt(v[0]);
+  return opt(v);
 }
 
-function b64(s: string | undefined): string {
+function b64(v: unknown): string {
+  const s = str(v);
   if (!s) return '';
   try {
     // Les titres EPG Xtream sont encodés en base64 (UTF-8).
@@ -104,11 +124,11 @@ export async function getAccount(c: XtreamCredentials): Promise<AccountInfo> {
   const u = r.user_info;
   if (!u || u.auth === 0 || u.auth === '0') throw new Error('identifiants invalides');
   return {
-    status: u.status,
+    status: opt(u.status),
     expires: num(u.exp_date) ? num(u.exp_date)! * 1000 : undefined,
     created: num(u.created_at) ? num(u.created_at)! * 1000 : undefined,
     maxConnections: num(u.max_connections),
-    activeConnections: parseInt(u.active_cons, 10) || 0,
+    activeConnections: parseInt(str(u.active_cons), 10) || 0,
     trial: u.is_trial === '1' || u.is_trial === 1,
   };
 }
@@ -133,9 +153,10 @@ export async function loadXtream(c: XtreamCredentials): Promise<XtreamCatalog> {
 
   const names = (cats: XCategory[]) => {
     const m: Record<string, string> = {};
-    for (const cat of cats || []) m[cat.category_id] = cat.category_name;
-    return (id: string) => m[id] || 'Autres';
+    for (const cat of list<XCategory>(cats)) m[str(cat.category_id)] = str(cat.category_name);
+    return (id: unknown) => m[str(id)] || 'Autres';
   };
+  const untitled = (id: unknown) => 'Sans titre ' + str(id);
   const liveCat = names(liveCats);
   const vodCat = names(vodCats);
   const serCat = names(serCats);
@@ -144,40 +165,40 @@ export async function loadXtream(c: XtreamCredentials): Promise<XtreamCatalog> {
 
   return {
     account,
-    live: (live || []).map((s) => ({
+    live: list<XStream>(live).filter((s) => s.stream_id !== undefined && s.stream_id !== null).map((s) => ({
       id: 'l' + s.stream_id,
-      name: s.name,
+      name: str(s.name) || untitled(s.stream_id),
       url: liveBase + s.stream_id + '.m3u8',
-      logo: s.stream_icon || undefined,
+      logo: opt(s.stream_icon),
       group: liveCat(s.category_id),
-      tvgId: s.epg_channel_id || undefined,
+      tvgId: opt(s.epg_channel_id),
       kind: 'live' as const,
       streamId: s.stream_id,
       archive: s.tv_archive === 1 || s.tv_archive === '1',
     })),
-    movies: (vod || []).map((s) => ({
+    movies: list<XStream>(vod).filter((s) => s.stream_id !== undefined && s.stream_id !== null).map((s) => ({
       id: 'm' + s.stream_id,
       // « Titre (2021) » → titre seul, l'année est affichée à part.
-      name: s.name.replace(/\s*\((\d{4})\)\s*$/, '') || s.name,
-      url: movieBase + s.stream_id + '.' + (s.container_extension || 'mp4'),
-      logo: s.stream_icon || undefined,
+      name: str(s.name).replace(/\s*\((\d{4})\)\s*$/, '') || str(s.name) || untitled(s.stream_id),
+      url: movieBase + s.stream_id + '.' + (str(s.container_extension) || 'mp4'),
+      logo: opt(s.stream_icon),
       group: vodCat(s.category_id),
       kind: 'movie' as const,
       streamId: s.stream_id,
       added: num(s.added) ? num(s.added)! * 1000 : undefined,
       rating: num(s.rating),
-      year: year((/\((\d{4})\)/.exec(s.name) || [])[1]),
+      year: year((/\((\d{4})\)/.exec(str(s.name)) || [])[1]),
     })),
-    shows: (series || []).map((s) => ({
+    shows: list<XSeries>(series).filter((s) => s.series_id !== undefined && s.series_id !== null).map((s) => ({
       id: 's' + s.series_id,
-      name: s.name,
-      cover: s.cover || undefined,
+      name: str(s.name) || untitled(s.series_id),
+      cover: opt(s.cover),
       backdrop: firstImage(s.backdrop_path),
       group: serCat(s.category_id),
-      plot: s.plot,
-      genre: s.genre,
+      plot: opt(s.plot),
+      genre: opt(s.genre),
       rating: num(s.rating),
-      year: year(s.releaseDate),
+      year: year(str(s.releaseDate)),
       added: num(s.last_modified) ? num(s.last_modified)! * 1000 : undefined,
       seriesId: s.series_id,
     })),
@@ -188,16 +209,16 @@ export async function getMovieDetails(c: XtreamCredentials, movie: Channel): Pro
   const r = await get<{ info?: Record<string, any> }>(api(c, '&action=get_vod_info&vod_id=' + movie.streamId));
   const i = r.info || {};
   return {
-    title: i.name || movie.name,
-    plot: i.plot || i.description,
-    year: year(i.releasedate || i.release_date),
-    genre: i.genre,
+    title: str(i.name) || movie.name,
+    plot: opt(i.plot) || opt(i.description),
+    year: year(str(i.releasedate) || str(i.release_date)),
+    genre: opt(i.genre),
     rating: num(i.rating),
-    duration: i.duration,
-    cast: splitList(i.cast || i.actors),
-    director: i.director,
-    poster: i.movie_image || movie.logo,
-    backdrop: firstImage(i.backdrop_path) || i.movie_image || movie.logo,
+    duration: opt(i.duration),
+    cast: splitList(str(i.cast) || str(i.actors)),
+    director: opt(i.director),
+    poster: opt(i.movie_image) || movie.logo,
+    backdrop: firstImage(i.backdrop_path) || opt(i.movie_image) || movie.logo,
   };
 }
 
@@ -208,34 +229,43 @@ export async function getSeriesDetails(c: XtreamCredentials, show: Show): Promis
   const i = r.info || {};
   const base = streamBase(c, 'series');
   const seasons: { season: number; episodes: Episode[] }[] = [];
-  const eps = r.episodes || {};
+  // Selon les panels, « episodes » est un objet { "1": [...] } ou un tableau de saisons.
+  const eps: Record<string, any[]> = {};
+  const raw = r.episodes as unknown;
+  if (Array.isArray(raw)) raw.forEach((v, i) => (eps[String(i + 1)] = Array.isArray(v) ? v : [v]));
+  else if (raw && typeof raw === 'object') for (const k in raw as Record<string, any>) eps[k] = list((raw as Record<string, any>)[k]);
   for (const key in eps) {
     const season = parseInt(key, 10) || 1;
     seasons.push({
       season,
-      episodes: (eps[key] || []).map((e, idx) => ({
-        id: 'e' + e.id,
-        title: e.title || 'Episode ' + (idx + 1),
-        season,
-        episode: parseInt(e.episode_num, 10) || idx + 1,
-        url: base + e.id + '.' + (e.container_extension || 'mp4'),
-        image: (e.info && e.info.movie_image) || undefined,
-        plot: e.info && e.info.plot,
-        duration: e.info && e.info.duration,
-      })),
+      episodes: list<any>(eps[key])
+        .filter((e) => e.id !== undefined && e.id !== null)
+        .map((e, idx) => {
+          const info = e.info && typeof e.info === 'object' ? e.info : {};
+          return {
+            id: 'e' + e.id,
+            title: str(e.title) || 'Episode ' + (idx + 1),
+            season,
+            episode: parseInt(str(e.episode_num), 10) || idx + 1,
+            url: base + e.id + '.' + (str(e.container_extension) || 'mp4'),
+            image: opt(info.movie_image),
+            plot: opt(info.plot),
+            duration: opt(info.duration),
+          };
+        }),
     });
   }
   seasons.sort((a, b) => a.season - b.season);
   return {
-    title: i.name || show.name,
-    plot: i.plot || show.plot,
-    year: year(i.releaseDate) || show.year,
-    genre: i.genre || show.genre,
+    title: str(i.name) || show.name,
+    plot: opt(i.plot) || show.plot,
+    year: year(str(i.releaseDate)) || show.year,
+    genre: opt(i.genre) || show.genre,
     rating: num(i.rating) || show.rating,
-    cast: splitList(i.cast),
-    director: i.director,
-    poster: i.cover || show.cover,
-    backdrop: firstImage(i.backdrop_path) || show.backdrop || i.cover || show.cover,
+    cast: splitList(str(i.cast)),
+    director: opt(i.director),
+    poster: opt(i.cover) || show.cover,
+    backdrop: firstImage(i.backdrop_path) || show.backdrop || opt(i.cover) || show.cover,
     seasons,
   };
 }
@@ -245,13 +275,13 @@ export async function getShortEpg(c: XtreamCredentials, streamId: number, limit 
   const r = await get<{ epg_listings?: any[] }>(
     api(c, '&action=get_short_epg&stream_id=' + streamId + '&limit=' + limit),
   );
-  return (r.epg_listings || []).map(toProgram).filter((p) => p.end > p.start);
+  return list<any>(r && r.epg_listings).map(toProgram).filter((p) => p.end > p.start);
 }
 
 /** Programmes passés et à venir, avec l'indicateur de replay. */
 export async function getFullEpg(c: XtreamCredentials, streamId: number): Promise<Program[]> {
   const r = await get<{ epg_listings?: any[] }>(api(c, '&action=get_simple_data_table&stream_id=' + streamId));
-  return (r.epg_listings || []).map(toProgram).filter((p) => p.end > p.start);
+  return list<any>(r && r.epg_listings).map(toProgram).filter((p) => p.end > p.start);
 }
 
 function toProgram(e: any): Program {

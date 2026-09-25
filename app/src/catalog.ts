@@ -15,7 +15,7 @@ interface CacheData {
   epgUrl?: string;
 }
 
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const SEASON_RE = /^(.*?)[\s\-–:|]+(?:saison|season|s)\s*(\d+)\s*$/i;
 
 /** « Awled Moufida - Season 2 » → { name: 'Awled Moufida', season: 2 }. */
