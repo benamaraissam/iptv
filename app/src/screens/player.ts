@@ -169,7 +169,7 @@ export function player(params: Params): Screen {
     clear(errorBox);
     errorBox.appendChild(icon('offline'));
     errorBox.appendChild(h('p', { text: kind === 'network' ? t('streamUnreachable') : t('unsupported') }));
-    errorBox.appendChild(btn(t('retry'), { variant: 'primary', icon: 'refresh', onClick: () => start() }));
+    errorBox.appendChild(btn(t('retry'), { variant: 'primary', icon: 'refresh', onClick: () => start(true) }));
     errorBox.classList.remove('hidden');
     showOverlay(true);
     focusEl(errorBox.querySelector<HTMLElement>('button'));
@@ -247,7 +247,7 @@ export function player(params: Params): Screen {
 
   // ───── Démarrage ─────
   let saveTimer: number | undefined;
-  const start = () => {
+  const start = (force = false) => {
     errorBox.classList.add('hidden');
     el.classList.add('buffering');
     let startAt = 0;
@@ -257,7 +257,11 @@ export function player(params: Params): Screen {
     }
     if (isLive || item.kind === 'catchup') store.recordHistory(pid, item, 0, 0);
     engine.quality = store.getSettings().quality;
-    engine.load(item.url, startAt);
+    // Venant de l'aperçu de la TV en direct : le flux tourne déjà, on ne le relance pas.
+    if (!force && isLive && engine.isPlaying(item.url)) {
+      el.classList.remove('buffering');
+      engine.play();
+    } else engine.load(item.url, startAt);
     updatePlay();
     updateTime();
     renderExtras();

@@ -18,6 +18,8 @@ export class Engine {
   onError: (kind: 'network' | 'format' | 'other', detail?: string) => void = () => undefined;
   onTracks: () => void = () => undefined;
   quality: 'auto' | 'high' | 'low' = 'auto';
+  /** URL en cours (permet au lecteur plein écran de reprendre l'aperçu sans coupure). */
+  currentUrl: string | null = null;
 
   constructor() {
     const v = document.createElement('video');
@@ -37,6 +39,7 @@ export class Engine {
   async load(url: string, startAt = 0): Promise<void> {
     const token = ++this.loadToken;
     this.stop();
+    this.currentUrl = url;
     const v = this.video;
 
     const isHls = /\.m3u8?(\?|$)/i.test(url);
@@ -104,7 +107,13 @@ export class Engine {
     v.currentTime = Math.max(0, Math.min(v.duration - 1, v.currentTime + delta));
   }
 
+  /** Vrai si ce flux est déjà chargé et sans erreur. */
+  isPlaying(url: string): boolean {
+    return this.currentUrl === url && !this.video.error;
+  }
+
   stop(): void {
+    this.currentUrl = null;
     if (this.hls) {
       this.hls.destroy();
       this.hls = null;
