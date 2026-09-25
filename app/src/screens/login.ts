@@ -10,7 +10,7 @@ import * as store from '../storage';
 import { t } from '../i18n';
 
 /** Compte Xtream de démonstration (bouton « Essayer »). */
-const DEMO_XTREAM = { server: 'http://kytv.xyz', username: 'TG2wLJ5CRB', password: 'aeqWu2TBbM' };
+const DEMO_XTREAM = { server: 'http://kemotvpromax.xyz:80', username: 'TG2wLJ5CRB', password: 'aeqWu2TBbM' };
 
 /**
  * 2. Connexion : identifiants du fournisseur IPTV (Xtream Codes) ou lien M3U.
