@@ -5,6 +5,8 @@ import { h, clear, pagedList } from '../ui/dom';
 import { card, chips, emptyState, iconBtn, screenHeader, type ChipOption } from '../ui/components';
 import { t } from '../i18n';
 import { brandClock, categoryButton, imageFirst, prefetchOnIntent, resolvePoster } from './common';
+import { icon } from '../ui/icons';
+import { languageOf } from '../versions';
 
 type Item = Channel | Show;
 type Sort = 'popular' | 'new' | 'az';
@@ -20,6 +22,26 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
   const hasRating = all.some((x) => !!x.rating);
   let group: string | null = initialGroup || null;
   let sort: Sort = hasRating ? 'popular' : hasNew ? 'new' : 'az';
+  let lang = '';
+  let query = '';
+
+  // Langue de chaque titre (catégorie puis étiquettes du nom), calculée une fois par catégorie.
+  const langByGroup: Record<string, string | undefined> = {};
+  const langOf = (x: Item): string => {
+    if (!(x.group in langByGroup)) langByGroup[x.group] = languageOf({ name: '', group: x.group });
+    return langByGroup[x.group] || languageOf(x) || '';
+  };
+  const langCounts: Record<string, number> = {};
+  for (const x of all) {
+    const l = langOf(x);
+    if (l) langCounts[l] = (langCounts[l] || 0) + 1;
+  }
+  const langs = Object.keys(langCounts).sort((a, b) => langCounts[b] - langCounts[a]);
+  const norm = (v: string) =>
+    v
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
 
   const body = h('div', { class: 'scroll' });
   const grid = h('div', { class: 'poster-grid' });
@@ -27,6 +49,11 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
 
   const current = (): Item[] => {
     let list = group === null ? all.filter((x) => !app.isLocked(x.group)) : all.filter((x) => x.group === group);
+    if (lang) list = list.filter((x) => langOf(x) === lang);
+    if (query) {
+      const q = norm(query);
+      list = list.filter((x) => norm(x.name).indexOf(q) !== -1);
+    }
     list = list.slice();
     if (sort === 'popular') list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     else if (sort === 'new') list.sort((a, b) => (b.added || 0) - (a.added || 0));
@@ -66,8 +93,34 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
   });
   sortEl.classList.add('segmented', 'scope-switch');
 
+  // Recherche dans le catalogue affiché (titre), et filtre par langue.
+  let timer: number | undefined;
+  const input = h('input', { class: 'input vod-search-input focusable', type: 'search', placeholder: t('searchIn') + ' ' + t(kind).toLowerCase(), autocomplete: 'off' });
+  input.addEventListener('input', () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      query = (input as HTMLInputElement).value.trim();
+      render();
+    }, 250);
+  });
+  input.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).keyCode === 13) (input as HTMLInputElement).blur();
+  });
+  const searchEl = h('div', { class: 'vod-search' }, icon('search', 'search-ic'), input);
+  const langEl =
+    langs.length > 1
+      ? chips([{ id: '', label: t('allLanguages') }].concat(langs.map((l) => ({ id: l, label: l }))), lang, (id) => {
+          lang = id;
+          render();
+        })
+      : null;
+  if (langEl) langEl.classList.add('lang-chips');
+
   render();
-  return { toolbar: h('div', { class: 'live-filterbar vod-filterbar' }, catBtn.el, sorts.length > 1 ? sortEl : null), body };
+  return {
+    toolbar: h('div', { class: 'vod-tools' }, h('div', { class: 'live-filterbar vod-filterbar' }, catBtn.el, searchEl, sorts.length > 1 ? sortEl : null), langEl),
+    body,
+  };
 }
 
 /** 17 / 18. Écran Films ou Séries. */

@@ -1306,11 +1306,44 @@ html.kbd .epg-prog:focus {
 .detail-actions .btn {
   margin: 0 0.7rem 0.6rem 0;
 }
+/* Films / Séries : champ de recherche dans la barre de filtres */
+.vod-tools {
+  flex-shrink: 0;
+}
+.vod-search {
+  position: relative;
+  flex: 1;
+  min-width: 10rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.vod-search-input {
+  height: 2.9rem;
+  padding-left: 2.6rem;
+  -webkit-appearance: none;
+}
+.layout-wide .vod-search {
+  width: auto;
+  margin: 0 0 0 0.6rem;
+}
+.layout-wide .vod-filterbar {
+  max-width: 70rem;
+}
+.layout-wide .vod-filterbar .cat-btn {
+  max-width: 24rem;
+}
+.vod-tools .lang-chips {
+  margin-top: -0.4rem;
+}
+.layout-wide .vod-tools .lang-chips {
+  padding-left: 2.5rem;
+}
 /* Recherche : deuxième rangée de filtres (langue), plus discrète */
 .search .lang-chips {
   margin-top: -0.5rem;
 }
-.search .lang-chips .chip {
+.search .lang-chips .chip,
+.vod-tools .lang-chips .chip {
   height: 2rem;
   padding: 0 0.85rem;
   font-size: 0.8rem;

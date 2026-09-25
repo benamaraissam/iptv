@@ -158,6 +158,7 @@ const fr = {
   hideChannels: 'Masquer la liste',
   audioSubs: 'Audio et sous-titres',
   allLanguages: 'Toutes les langues',
+  searchIn: 'Rechercher dans',
   // Profil / paramètres
   account: 'Compte',
   playlists: 'Mes playlists',
@@ -351,6 +352,7 @@ const en: Dict = {
   hideChannels: 'Hide list',
   audioSubs: 'Audio & subtitles',
   allLanguages: 'All languages',
+  searchIn: 'Search in',
   account: 'Account',
   playlists: 'My playlists',
   connectedDevices: 'Connections',
