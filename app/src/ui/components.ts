@@ -7,7 +7,7 @@ import { t } from '../i18n';
 
 export interface BtnOpts {
   icon?: IconName;
-  variant?: 'primary' | 'glass' | 'ghost' | 'icon' | 'gradient';
+  variant?: 'primary' | 'glass' | 'ghost' | 'icon' | 'gradient' | 'light';
   onClick?: (e: Event) => void;
   cls?: string;
   title?: string;

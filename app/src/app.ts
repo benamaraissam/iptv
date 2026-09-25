@@ -92,6 +92,11 @@ class AppCore {
     this.updateLayout();
     window.addEventListener('resize', () => this.updateLayout());
     this.sidenav.addEventListener('focusin', () => this.shell.classList.add('nav-open'));
+    // Le navigateur fait défiler un conteneur « overflow: hidden » pour montrer l'élément
+    // qui reçoit le focus : on garde le menu calé à gauche (sinon libellés coupés).
+    this.sidenav.addEventListener('scroll', () => {
+      if (this.sidenav.scrollLeft) this.sidenav.scrollLeft = 0;
+    });
     this.sidenav.addEventListener('focusout', () => {
       window.setTimeout(() => {
         if (!this.sidenav.contains(document.activeElement)) this.shell.classList.remove('nav-open');
@@ -165,7 +170,8 @@ class AppCore {
     for (let i = 0; i < items.length; i++) items[i].classList.toggle('active', items[i].getAttribute('data-route') === tab);
     const chrome = top && top.screen.chrome === 'nav';
     this.shell.classList.toggle('with-nav', !!chrome);
-    this.shell.classList.toggle('nav-expanded', !!chrome && top.name === 'home' && this.wide);
+    // Menu toujours replié (icônes) : il s'ouvre en surimpression quand il reçoit le focus.
+    this.shell.classList.remove('nav-expanded');
   }
 
   /** Relance l'interface (changement de langue, de playlist...). */

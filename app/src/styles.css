@@ -3260,3 +3260,578 @@ html.kbd .picker-item:focus {
   padding: 1rem;
   text-align: center;
 }
+
+/* ═════════ Accueil façon Netflix ═════════ */
+.btn-light {
+  background: #fff;
+  color: #0a0f24;
+  box-shadow: 0 0.6rem 1.8rem rgba(0, 0, 0, 0.35);
+}
+.btn-light .ic {
+  fill: currentColor;
+}
+.btn-light:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.billboard {
+  position: relative;
+  height: 70vh;
+  min-height: 24rem;
+  overflow: hidden;
+  background: #060a1c;
+}
+.layout-wide .billboard {
+  height: 80vh;
+  min-height: 30rem;
+}
+.billboard .hero-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+.billboard .hero-bg .art.cover .art-initials {
+  display: none;
+}
+.hero-enter .hero-bg {
+  -webkit-animation: heroFade 0.7s ease-out;
+  animation: heroFade 0.7s ease-out;
+}
+.hero-enter .hero-bg .art.cover img,
+.hero-enter .hero-ambient {
+  -webkit-animation: kenburns 14s ease-out forwards;
+  animation: kenburns 14s ease-out forwards;
+}
+.hero-enter .hero-content,
+.hero-enter .hero-logo {
+  -webkit-animation: heroRise 0.6s ease-out;
+  animation: heroRise 0.6s ease-out;
+}
+@-webkit-keyframes heroFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes heroFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@-webkit-keyframes kenburns {
+  from { -webkit-transform: scale(1.12); }
+  to { -webkit-transform: scale(1); }
+}
+@keyframes kenburns {
+  from { transform: scale(1.12); }
+  to { transform: scale(1); }
+}
+@-webkit-keyframes heroRise {
+  from { opacity: 0; -webkit-transform: translateY(1.2rem); }
+  to { opacity: 1; -webkit-transform: none; }
+}
+@keyframes heroRise {
+  from { opacity: 0; transform: translateY(1.2rem); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Chaîne en vedette : halo coloré issu du logo + logo net */
+.hero-ambient {
+  position: absolute;
+  top: -15%;
+  left: -15%;
+  right: -15%;
+  bottom: -15%;
+  background-size: cover;
+  background-position: center;
+  -webkit-filter: blur(70px) saturate(1.8);
+  filter: blur(70px) saturate(1.8);
+  opacity: 0.55;
+}
+.billboard.is-live .hero-bg:after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at 70% 40%, rgba(6, 10, 28, 0) 0%, rgba(6, 10, 28, 0.55) 70%);
+}
+.hero-logo {
+  position: absolute;
+  z-index: 1;
+  display: none;
+  right: 7%;
+  top: 14%;
+  width: 34%;
+  height: 46%;
+}
+.is-live .hero-logo {
+  display: block;
+}
+.hero-logo .art {
+  background: none !important;
+}
+.hero-logo .art img {
+  padding: 0 !important;
+  object-fit: contain;
+  -webkit-filter: drop-shadow(0 1.5rem 3rem rgba(0, 0, 0, 0.6));
+  filter: drop-shadow(0 1.5rem 3rem rgba(0, 0, 0, 0.6));
+}
+.hero-logo .art-initials {
+  font-size: 5rem;
+}
+
+.billboard .hero-shade {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(6, 10, 28, 0.55) 0%, rgba(6, 10, 28, 0) 22%, rgba(6, 10, 28, 0) 45%, rgba(6, 10, 28, 0.85) 78%, #060a1c 100%);
+}
+.layout-wide .billboard .hero-shade {
+  background: linear-gradient(90deg, rgba(6, 10, 28, 0.92) 0%, rgba(6, 10, 28, 0.55) 32%, rgba(6, 10, 28, 0) 62%),
+    linear-gradient(0deg, #060a1c 0%, rgba(6, 10, 28, 0.6) 18%, rgba(6, 10, 28, 0) 42%);
+}
+.billboard .hero-content {
+  position: absolute;
+  z-index: 2;
+  left: 1.2rem;
+  right: 1.2rem;
+  bottom: 2.2rem;
+  text-align: center;
+}
+.layout-wide .billboard .hero-content {
+  left: 2.5rem;
+  right: auto;
+  bottom: 27%;
+  width: 46%;
+  text-align: left;
+}
+.hero-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.6rem;
+}
+.layout-wide .hero-kicker {
+  justify-content: flex-start;
+}
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.kicker:before {
+  content: '';
+  width: 0.25rem;
+  height: 1rem;
+  margin-right: 0.55rem;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #3fa2ff, #8b5cff);
+}
+.kicker.live {
+  color: #ff6b85;
+}
+.kicker.live:before {
+  display: none;
+}
+.kicker .live-dot {
+  -webkit-animation: pulse 1.4s ease-in-out infinite;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.kicker-sub {
+  margin-left: 0.8rem;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+.billboard .hero-title {
+  font-size: 2.3rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-shadow: 0 0.3rem 2rem rgba(0, 0, 0, 0.6);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.layout-wide .billboard .hero-title {
+  font-size: 3.6rem;
+}
+.hero-meta {
+  justify-content: center;
+  margin-top: 0.7rem;
+  font-size: 0.85rem;
+}
+.layout-wide .hero-meta {
+  justify-content: flex-start;
+  font-size: 0.95rem;
+}
+.hero-meta > * {
+  margin: 0 0.7rem 0.35rem 0;
+}
+.match {
+  color: #46d369;
+  font-weight: 700;
+}
+.hero-live {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+}
+.layout-wide .hero-live {
+  justify-content: flex-start;
+}
+.hero-live > * {
+  margin: 0.2rem 0.8rem 0.2rem 0;
+}
+.hero-now {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.hero-progress {
+  width: 9rem;
+  height: 0.25rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.hero-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2f86ff, #8b5cff);
+}
+.billboard .hero-plot {
+  display: none;
+}
+.layout-wide .billboard .hero-plot {
+  display: block;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 0.8rem;
+  max-width: 38rem;
+  color: var(--text-2);
+  font-size: 1rem;
+  line-height: 1.5;
+  text-shadow: 0 0.1rem 0.8rem rgba(0, 0, 0, 0.6);
+}
+.billboard .hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1.2rem;
+}
+.layout-wide .billboard .hero-actions {
+  justify-content: flex-start;
+  margin-top: 1.5rem;
+}
+.billboard .hero-actions .btn {
+  height: 3rem;
+  margin-right: 0.8rem;
+  font-size: 1rem;
+}
+.billboard .hero-actions .hero-play {
+  padding: 0 1.8rem;
+}
+.billboard .hero-actions .hero-list {
+  width: 3rem;
+  height: 3rem;
+  margin-right: 0;
+  background: rgba(20, 26, 50, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+}
+.layout-compact .billboard .hero-actions .btn-glass span {
+  display: none;
+}
+.layout-compact .billboard .hero-actions .btn-glass {
+  width: 3rem;
+  padding: 0;
+  border-radius: 50%;
+}
+.hero-dots {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 0.7rem;
+  text-align: center;
+}
+.layout-wide .hero-dots {
+  left: auto;
+  right: 2.5rem;
+  bottom: 27%;
+}
+.hero-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin: 0 0.2rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.35);
+  -webkit-transition: width 0.3s, background-color 0.3s;
+  transition: width 0.3s, background-color 0.3s;
+}
+.hero-dot.on {
+  width: 1.5rem;
+  background: #fff;
+}
+
+/* Rangées sous l'affiche */
+.layout-wide .netflix .rails {
+  position: relative;
+  z-index: 2;
+  margin-top: -21vh;
+}
+.netflix .rail {
+  margin-top: 1.6rem;
+}
+.layout-wide .netflix .rail .card-poster {
+  width: 9.4rem;
+}
+
+/* En-tête mobile par-dessus l'affiche */
+.home-header.overlay {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, rgba(6, 10, 28, 0.85), rgba(6, 10, 28, 0));
+  -webkit-transition: background-color 0.3s;
+  transition: background-color 0.3s;
+}
+.home-header.overlay.solid {
+  background: rgba(6, 10, 28, 0.96);
+}
+.home-header.overlay .btn-icon {
+  background: rgba(10, 16, 44, 0.45);
+}
+
+/* Accès rapides (mobile) */
+.quick-row {
+  display: flex;
+  overflow-x: auto;
+  padding: 0.6rem 1rem 0;
+  scrollbar-width: none;
+}
+.quick-row::-webkit-scrollbar {
+  display: none;
+}
+.quick-chip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  height: 2.4rem;
+  margin-right: 0.5rem;
+  padding: 0 1rem;
+  border-radius: 2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+.quick-chip .ic {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.45rem;
+  color: var(--primary-2);
+}
+
+/* Top 10 : grand chiffre + affiche */
+.rail .card-top {
+  display: flex;
+  align-items: flex-end;
+  width: 9.6rem;
+}
+.layout-wide .rail .card-top {
+  width: 13rem;
+}
+.top-num {
+  position: relative;
+  z-index: 0;
+  flex-shrink: 0;
+  margin-right: -1.1rem;
+  font-size: 6.2rem;
+  font-weight: 900;
+  line-height: 0.78;
+  letter-spacing: -0.08em;
+  color: #060a1c;
+  -webkit-text-stroke: 0.14rem #6c78a6;
+}
+.layout-wide .top-num {
+  font-size: 8.4rem;
+}
+.card-top .card-media {
+  position: relative;
+  z-index: 1;
+  -webkit-box-flex: 1;
+  flex: 1;
+  padding-top: 0;
+  height: 9rem;
+}
+.layout-wide .card-top .card-media {
+  height: 12rem;
+}
+html.tv .card-top:focus .top-num,
+html.kbd .card-top:focus .top-num,
+.card-top:hover .top-num {
+  -webkit-text-stroke-color: var(--primary-2);
+}
+
+/* Vignettes de chaînes */
+.rail .card-tile {
+  width: 12rem;
+}
+.layout-wide .rail .card-tile {
+  width: 15.5rem;
+}
+.card-tile .card-media {
+  padding-top: 56.25%;
+  background: #0b1030;
+}
+.tile-ambient {
+  position: absolute;
+  top: -30%;
+  left: -30%;
+  right: -30%;
+  bottom: -30%;
+  background-size: cover;
+  background-position: center;
+  -webkit-filter: blur(22px) saturate(1.6);
+  filter: blur(22px) saturate(1.6);
+  opacity: 0.45;
+}
+.card-tile .art.contain {
+  background: rgba(8, 12, 34, 0.35) !important;
+}
+.card-tile .art.contain img {
+  padding: 16% 22%;
+}
+.tile-live {
+  position: absolute;
+  z-index: 2;
+  top: 0.45rem;
+  left: 0.45rem;
+  display: flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.35rem;
+  background: rgba(6, 10, 28, 0.75);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ff6b85;
+}
+.tile-live .live-dot {
+  width: 0.35rem;
+  height: 0.35rem;
+  margin-right: 0.3rem;
+}
+.tile-bar {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0.2rem;
+  background: rgba(255, 255, 255, 0.15);
+}
+.card-tile:not(.has-prog) .tile-bar {
+  display: none;
+}
+.tile-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2f86ff, #8b5cff);
+}
+.tile-prog {
+  margin-top: 0.15rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Grand écran : affiche fixe, rangées qui défilent dans la moitié basse */
+.immersive .billboard {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: auto;
+  min-height: 0;
+}
+.immersive .home-rails-area {
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0) 0, #000 1.2rem);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0) 0, #000 1.2rem);
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 47%;
+  padding-bottom: 1.2rem;
+}
+.immersive.no-hero .home-rails-area {
+  top: 5rem;
+  height: auto;
+}
+.layout-wide .immersive .rails {
+  position: relative;
+  margin-top: 0;
+  padding-top: 0.6rem;
+}
+.immersive .rail {
+  margin-top: 0.4rem;
+  margin-bottom: 1rem;
+}
+.layout-wide .immersive .billboard .hero-content {
+  bottom: 51%;
+}
+.layout-wide .immersive .hero-dots {
+  bottom: 51%;
+}
+.layout-wide .immersive .billboard .hero-shade {
+  background: linear-gradient(90deg, rgba(6, 10, 28, 0.94) 0%, rgba(6, 10, 28, 0.55) 34%, rgba(6, 10, 28, 0) 62%),
+    linear-gradient(0deg, #060a1c 0%, rgba(6, 10, 28, 0.94) 40%, rgba(6, 10, 28, 0.35) 56%, rgba(6, 10, 28, 0) 72%);
+}
+.immersive .hero-logo {
+  top: 9%;
+  height: 34%;
+  width: 30%;
+}
+.immersive .hero-actions {
+  -webkit-transition: opacity 0.25s;
+  transition: opacity 0.25s;
+}
+.immersive.browsing .hero-actions,
+.immersive.browsing .hero-dots {
+  opacity: 0;
+}
+.immersive.browsing .hero-kicker {
+  opacity: 0.8;
+}
+
+/* Top 10 : chiffre bien visible */
+.top-num {
+  margin-right: -0.5rem;
+}
+.rail .card-top {
+  width: 10.4rem;
+}
+.layout-wide .rail .card-top {
+  width: 14rem;
+}
