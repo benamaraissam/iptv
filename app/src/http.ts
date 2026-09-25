@@ -2,12 +2,20 @@ import { CapacitorHttp } from '@capacitor/core';
 import { isNative, platform } from './platform';
 
 /**
+ * Android : l'activité native sert `/__proxy?url=…` en flux continu (voir MainActivity) —
+ * le catalogue se charge par `fetch` sans passer par le pont Capacitor, qui ne supporte
+ * pas des réponses de plusieurs dizaines de Mo sur une box TV.
+ */
+export const hasNativeProxy = platform === 'android';
+
+/**
  * Dans un navigateur (npm run dev / preview), les serveurs IPTV refusent les appels
  * (pas d'en-têtes CORS) : on passe par le petit proxy du serveur de développement.
- * Inutile sur Android/iOS (HTTP natif) et sur les TV (pas de CORS).
+ * Sur Android, par le proxy natif. Inutile sur iOS (HTTP natif) et sur les TV (pas de CORS).
  */
 const useProxy =
-  platform === 'web' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol) && /^(localhost|127\.|192\.168\.|10\.|\[?::1)/.test(location.hostname);
+  hasNativeProxy ||
+  (platform === 'web' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol) && /^(localhost|127\.|192\.168\.|10\.|\[?::1)/.test(location.hostname));
 
 export function proxied(url: string): string {
   if (!useProxy || !/^https?:\/\//i.test(url) || url.indexOf(location.origin) === 0) return url;
@@ -29,7 +37,7 @@ export function describeNetworkError(e: unknown): string {
  * (voir <access origin="*"> dans config.xml).
  */
 export async function fetchText(url: string): Promise<string> {
-  if (isNative) {
+  if (isNative && !hasNativeProxy) {
     const res = await CapacitorHttp.get({ url, responseType: 'text' });
     if (res.status < 200 || res.status >= 300) throw new Error('HTTP ' + res.status);
     return typeof res.data === 'string' ? res.data : JSON.stringify(res.data);

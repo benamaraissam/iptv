@@ -3,7 +3,7 @@ import { VersionIndex } from './versions';
 import { prepareSearch } from './textsearch';
 import { mark, timed } from './diag';
 import { hashId, parseEpgUrl, parseM3U } from './m3u';
-import { fetchText } from './http';
+import { fetchText, hasNativeProxy } from './http';
 import * as xt from './xtream';
 import * as store from './storage';
 import { EpgStore } from './epg';
@@ -31,7 +31,7 @@ const CACHE_VERSION = 4;
  * de JSON) ne passe pas par le pont natif sans figer l'appareil. On charge alors les
  * catégories une par une, en arrière-plan, et l'interface est utilisable tout de suite.
  */
-const PROGRESSIVE = isNative || lowPower;
+const PROGRESSIVE = (isNative || lowPower) && !hasNativeProxy;
 
 export interface LoadState {
   done: number;
