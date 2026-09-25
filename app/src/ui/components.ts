@@ -151,6 +151,7 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
       }
       done = true;
       detach(img);
+      box.classList.remove('loading');
       markBadImage(src, viaProxy);
       // On ne déplace pas la carte à chaud (liste qui saute) : le tri « images d'abord »
       // s'appliquera à la prochaine ouverture de l'écran.
@@ -171,6 +172,7 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
           done = true;
           window.clearTimeout(timer);
           if (viaProxy) markHostProxy(src, true);
+          box.classList.remove('loading');
           box.classList.add('loaded');
         },
         error: () => fail(),
@@ -185,6 +187,9 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
       if (!worthTrying(src, canProxy)) return fail(true);
       viaProxy = canProxy && (hostProxyState(src) === 'ok' || hostLooksDown(src));
       arm();
+      // Pendant le téléchargement : animation de chargement, image masquée (sinon le
+      // navigateur dessine l'image par blocs sur un serveur lent, comme si elle était corrompue).
+      box.classList.add('loading');
       img.src = viaProxy ? proxied(src) : src;
     });
   }
