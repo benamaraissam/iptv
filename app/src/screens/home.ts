@@ -10,6 +10,7 @@ import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
 import { catalogProgress, channelNumber, clock, continueEntries, historyEntries, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { hasGoodImage } from '../imgcache';
+import { lowPower } from '../platform';
 
 type Item = Channel | Show;
 /** Ce que la grande affiche peut présenter. */
@@ -25,6 +26,12 @@ const backdropOf = (x: Item): string | undefined => (isShow(x) ? x.backdrop || x
 const posterOf = (x: Item): string | undefined => (isShow(x) ? x.cover : x.logo);
 
 /**
+ * Catalogue progressif : l'accueil ne se reconstruit que deux fois (premières catégories,
+ * puis fin), quel que soit le nombre d'écrans d'accueil créés entre-temps.
+ */
+const refreshDone = new WeakMap<object, { first: boolean; complete: boolean }>();
+
+/**
  * Accueil façon Netflix : grande affiche (rotation automatique, ou élément sélectionné
  * sur TV), puis rangées thématiques. Fonctionne aussi pour une playlist 100 % TV en direct.
  */
@@ -35,9 +42,16 @@ export function home(): Screen {
   const open = <T extends { group: string }>(list: T[]) => list.filter((x) => !app.isLocked(x.group));
 
   // Partout sur l'accueil, les éléments avec une image passent devant.
-  const movies = imageFirst(open(cat.movies), (m) => m.logo);
-  const shows = imageFirst(open(cat.shows), (x) => x.cover || x.backdrop);
+  // Pas de tri « images d'abord » sur les listes entières (170 000 titres) : il se fait
+  // sur chaque rangée, une fois les candidats choisis.
+  const movies = open(cat.movies);
+  const shows = open(cat.shows);
   const live = imageFirst(open(cat.live), (c) => c.logo);
+  // Box TV : moins de rangées et de cartes, l'accueil se construit en une fraction de seconde.
+  const RAIL = lowPower ? 12 : 20;
+  const N_MOVIE_GENRES = lowPower ? 3 : 4;
+  const N_SHOW_GENRES = lowPower ? 2 : 3;
+  const N_LIVE_GROUPS = lowPower ? 4 : 8;
   const vod: Item[] = (movies as Item[]).concat(shows);
   const cont = continueEntries(pid);
   const history = historyEntries(pid);
@@ -313,19 +327,19 @@ export function home(): Screen {
   const liveNow = pickLiveNow(live, history, myList.map((r) => r.id));
   addRow(t('liveNowRow'), liveNow.map((c) => channelTile(c, live, attachHero)), () => app.reset('live'), 'rail-live');
 
-  addRow(t('recentlyAdded'), recent.map(posterCard));
+  addRow(t('recentlyAdded'), recent.slice(0, RAIL).map(posterCard));
 
   // Genres films / séries
-  const movieGroups = topGroups(movies, 4);
-  const byMovieGroup = firstByGroup(movies, movieGroups, 20);
-  for (const g of movieGroups) addRow(g, byMovieGroup[g].map(posterCard), () => app.push('movies', { group: g }));
-  const showGroups = topGroups(shows, 3);
-  const byShowGroup = firstByGroup(shows, showGroups, 20);
-  for (const g of showGroups) addRow(g, byShowGroup[g].map(posterCard), () => app.push('series', { group: g }));
+  const movieGroups = topGroups(movies, N_MOVIE_GENRES);
+  const byMovieGroup = firstByGroup(movies, movieGroups, RAIL * 2);
+  for (const g of movieGroups) addRow(g, imageFirst(byMovieGroup[g], posterOf).slice(0, RAIL).map(posterCard), () => app.push('movies', { group: g }));
+  const showGroups = topGroups(shows, N_SHOW_GENRES);
+  const byShowGroup = firstByGroup(shows, showGroups, RAIL * 2);
+  for (const g of showGroups) addRow(g, imageFirst(byShowGroup[g], posterOf).slice(0, RAIL).map(posterCard), () => app.push('series', { group: g }));
 
   // Chaînes par catégorie
-  const liveGroups = topGroups(live, 8);
-  const byLiveGroup = firstByGroup(live, liveGroups, 20);
+  const liveGroups = topGroups(live, N_LIVE_GROUPS);
+  const byLiveGroup = firstByGroup(live, liveGroups, RAIL);
   for (const g of liveGroups) {
     const chans = byLiveGroup[g];
     addRow(g, chans.map((c) => channelTile(c, chans, attachHero)), () => app.reset('live', { group: g }), 'rail-live');
@@ -338,7 +352,7 @@ export function home(): Screen {
     const c = cat.get(hEntry.id) as Channel | undefined;
     if (c && isLive(c) && !app.isLocked(c.group)) recentLive.push(c);
   }
-  addRow(t('recentChannels'), recentLive.slice(0, 20).map((c) => channelTile(c, recentLive, attachHero)), undefined, 'rail-live');
+  addRow(t('recentChannels'), recentLive.slice(0, RAIL).map((c) => channelTile(c, recentLive, attachHero)), undefined, 'rail-live');
 
   // Accès rapides (mobile)
   const quick: [IconName, TKey, () => void][] = [
@@ -401,13 +415,16 @@ export function home(): Screen {
   // reconstruit une fois les premières catégories arrivées, puis à la fin.
   const progress = catalogProgress();
   if (progress.el) el.appendChild(progress.el);
-  let refreshed = false;
   const offProgress = cat.loadState.complete
     ? () => undefined
     : cat.onProgress((s) => {
-        const first = !refreshed && s.done >= Math.min(10, s.total);
-        if (!first && !s.complete) return;
-        refreshed = true;
+        let st = refreshDone.get(cat);
+        if (!st) refreshDone.set(cat, (st = { first: false, complete: false }));
+        const first = !st.first && s.done >= Math.min(10, s.total);
+        const last = s.complete && !st.complete;
+        if (!first && !last) return;
+        if (first) st.first = true;
+        if (last) st.complete = true;
         if (app.current === 'home' && !hasModal()) app.replace('home');
       });
 
