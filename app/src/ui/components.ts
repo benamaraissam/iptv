@@ -134,23 +134,27 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
       if (done) return;
       window.clearTimeout(timer);
       if (viaProxy) markHostProxy(src, false);
-      // Un échec direct isolé (serveur saturé, coupure) ne suffit pas : on réessaie une fois
-      // via le proxy en développement — sauf si l'hébergeur n'a pas répondu du tout.
-      if (!retried && !viaProxy && !timedOut && canProxy && hostProxyState(src) !== 'no') {
+      // Un échec direct (refus, coupure, ou aucune réponse) : on réessaie une fois via le
+      // proxy en développement, tant qu'on ne sait pas qu'il est inutile pour cet hébergeur.
+      if (!retried && !viaProxy && canProxy && hostProxyState(src) !== 'no') {
         retried = true;
         viaProxy = true;
-        window.setTimeout(() => {
-          if (done) return;
-          arm();
-          img.src = proxied(src);
-        }, 1500);
+        window.setTimeout(
+          () => {
+            if (done) return;
+            arm();
+            img.src = proxied(src);
+          },
+          timedOut ? 0 : 1500,
+        );
         return;
       }
       done = true;
       detach(img);
-      markBadImage(src);
+      markBadImage(src, viaProxy);
+      // On ne déplace pas la carte à chaud (liste qui saute) : le tri « images d'abord »
+      // s'appliquera à la prochaine ouverture de l'écran.
       if (onFail) onFail();
-      else sendToBack(box);
     };
     const img = h('img', {
       alt: '',
@@ -215,24 +219,6 @@ function lazyStart(img: HTMLImageElement, start: () => void): void {
   observer.observe(img);
 }
 
-const SORTED_PARENTS = /(^| )(rail-track|poster-grid|channel-grid)( |$)/;
-
-/**
- * L'image d'une carte n'a pas pu s'afficher : la carte passe en fin de rangée / de grille,
- * pour que les éléments avec une vraie image restent devant. (Pas pour le Top 10 numéroté,
- * ni pour l'élément qui a le focus.)
- */
-export function sendToBack(box: HTMLElement): void {
-  let node: HTMLElement | null = box.parentElement;
-  while (node && !node.classList.contains('card') && !node.classList.contains('ch-row')) node = node.parentElement;
-  if (!node || node.classList.contains('card-top') || node === document.activeElement) return;
-  const parent = node.parentElement;
-  if (!parent) return;
-  const list = parent.classList.contains('ch-row') ? null : parent;
-  if (list && (SORTED_PARENTS.test(list.className) || (list.parentElement && list.parentElement.classList.contains('ch-list')) || list.classList.contains('ch-list'))) {
-    list.appendChild(node);
-  }
-}
 
 // ───────────── Cartes ─────────────
 
@@ -256,19 +242,18 @@ export function card(
   attrs: Record<string, string> = {},
 ): HTMLElement {
   const artCls = shape === 'channel' ? 'contain' : '';
-  let media: HTMLElement;
   const el = h(
     'button',
     { type: 'button', class: 'card card-' + shape + ' focusable', on: { click: onClick } },
-    (media = h(
+    h(
       'div',
       { class: 'card-media' },
-      rescuableArt(d.image, d.title, artCls, d.resolveImage, () => sendToBack(media)),
+      rescuableArt(d.image, d.title, artCls, d.resolveImage),
       d.badge ? h('span', { class: 'badge', text: d.badge }) : null,
       d.fav ? h('span', { class: 'card-fav' }, icon('heart')) : null,
       d.locked ? h('span', { class: 'card-lock' }, icon('lock')) : null,
       d.progress !== undefined ? h('div', { class: 'progress' }, h('i', { style: 'width:' + Math.round(d.progress * 100) + '%' })) : null,
-    )),
+    ),
     h('div', { class: 'card-title', text: d.title }),
     d.sub ? h('div', { class: 'card-sub', text: d.sub }) : null,
   );

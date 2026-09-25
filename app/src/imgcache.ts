@@ -63,16 +63,21 @@ export function worthTrying(url: string, canProxy: boolean): boolean {
   return canProxy && hostProxyState(url) !== 'no' && !(bad[url] && Date.now() - bad[url] < EXPIRY);
 }
 
+/** Échecs en accès direct seulement : si l'hôte marche ensuite via le proxy, ils ne comptent plus. */
+const directOnly: Record<string, 1> = {};
+
 function isBad(url: string): boolean {
   const at = bad[url];
-  if (at && Date.now() - (at > 1 ? at : 0) < EXPIRY) return true;
-  return hostLooksDown(url);
+  if (at && Date.now() - (at > 1 ? at : 0) < EXPIRY && !(directOnly[url] && hostProxyState(url) === 'ok')) return true;
+  return hostLooksDown(url) && hostProxyState(url) !== 'ok';
 }
 
-export function markBadImage(url?: string): void {
+export function markBadImage(url?: string, triedProxy = false): void {
   if (!url) return;
   const host = hostOf(url);
   if (host) hostFails[host] = (hostFails[host] || 0) + 1;
+  if (!triedProxy) directOnly[url] = 1;
+  else delete directOnly[url];
   if (bad[url] && Date.now() - bad[url] < EXPIRY) return;
   bad[url] = Date.now();
   window.clearTimeout(saveTimer);
