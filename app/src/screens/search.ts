@@ -7,21 +7,13 @@ import { card, chips, emptyState, rail, screenHeader } from '../ui/components';
 import * as store from '../storage';
 import { t } from '../i18n';
 import { posterCard } from './vod';
-import { brandClock, imageFirst } from './common';
+import { brandClock } from './common';
+import { hasGoodImage } from '../imgcache';
 import { languageOf } from '../versions';
+import { rankSearch } from '../textsearch';
 
 const MAX_RESULTS = 60;
 
-function norm(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[àáâä]/g, 'a')
-    .replace(/[éèêë]/g, 'e')
-    .replace(/[îï]/g, 'i')
-    .replace(/[ôö]/g, 'o')
-    .replace(/[ùûü]/g, 'u')
-    .replace(/ç/g, 'c');
-}
 
 /** 11. Recherche : films, séries et chaînes. */
 export function search(): Screen {
@@ -61,12 +53,18 @@ export function search(): Screen {
 
   const render = () => {
     clear(body);
-    const q = norm(input.value.trim());
+    const q = input.value.trim();
     if (!q) return renderIdle();
-    const match = (name: string) => norm(name).indexOf(q) !== -1;
-    const liveRes = scope === 'all' || scope === 'live' ? imageFirst(open(cat.live).filter((c) => match(c.name)), (c) => c.logo).slice(0, MAX_RESULTS) : [];
-    const movieRes = scope === 'all' || scope === 'movies' ? imageFirst(open(cat.movies).filter((c) => match(c.name)), (c) => c.logo).slice(0, MAX_RESULTS) : [];
-    const showRes = scope === 'all' || scope === 'series' ? imageFirst(open(cat.shows).filter((c) => match(c.name)), (c) => c.cover).slice(0, MAX_RESULTS) : [];
+    // Recherche tolérante (fautes, mots oubliés, ordre libre), classée par pertinence ;
+    // à pertinence égale, les titres avec image puis les mieux notés passent devant.
+    const boost = (x: { rating?: number }, img?: string) => (hasGoodImage(img) ? 500 : 0) + Math.min(499, Math.round((x.rating || 0) * 40));
+    const find = <T extends { id: string; name: string; group: string; rating?: number }>(list: T[], img: (x: T) => string | undefined) => {
+      const res = rankSearch(list, q, MAX_RESULTS * 2, (x) => boost(x, img(x)));
+      return open(res).slice(0, MAX_RESULTS);
+    };
+    const liveRes = scope === 'all' || scope === 'live' ? find(cat.live, (c) => c.logo) : [];
+    const movieRes = scope === 'all' || scope === 'movies' ? find(cat.movies, (c) => c.logo) : [];
+    const showRes = scope === 'all' || scope === 'series' ? find(cat.shows, (c) => c.cover) : [];
     if (!liveRes.length && !movieRes.length && !showRes.length) {
       body.appendChild(emptyState('noResults', t('noResults'), t('noResultsText')));
       return;

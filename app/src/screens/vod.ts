@@ -7,6 +7,7 @@ import { t } from '../i18n';
 import { brandClock, categoryButton, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { icon } from '../ui/icons';
 import { languageOf } from '../versions';
+import { matchesQuery } from '../textsearch';
 
 type Item = Channel | Show;
 type Sort = 'popular' | 'new' | 'az';
@@ -37,11 +38,6 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
     if (l) langCounts[l] = (langCounts[l] || 0) + 1;
   }
   const langs = Object.keys(langCounts).sort((a, b) => langCounts[b] - langCounts[a]);
-  const norm = (v: string) =>
-    v
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
 
   const body = h('div', { class: 'scroll' });
   const grid = h('div', { class: 'poster-grid' });
@@ -51,8 +47,10 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
     let list = group === null ? all.filter((x) => !app.isLocked(x.group)) : all.filter((x) => x.group === group);
     if (lang) list = list.filter((x) => langOf(x) === lang);
     if (query) {
-      const q = norm(query);
-      list = list.filter((x) => norm(x.name).indexOf(q) !== -1);
+      // L'index de recherche est construit sur le catalogue complet (stable), une seule fois.
+      const ok: Record<string, true> = {};
+      for (const x of matchesQuery(all, query)) ok[x.id] = true;
+      list = list.filter((x) => ok[x.id]);
     }
     list = list.slice();
     if (sort === 'popular') list.sort((a, b) => (b.rating || 0) - (a.rating || 0));

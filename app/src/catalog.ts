@@ -1,5 +1,6 @@
 import type { AccountInfo, Channel, Details, Episode, Playlist, Program, Show } from './types';
 import { VersionIndex } from './versions';
+import { prepareSearch } from './textsearch';
 import { hashId, parseEpgUrl, parseM3U } from './m3u';
 import { fetchText } from './http';
 import * as xt from './xtream';
@@ -86,6 +87,12 @@ export class Catalog {
     for (const list of [this.live, this.movies, this.shows] as (Channel | Show)[][]) {
       for (const x of list) this.index.set(x.id, x);
     }
+    // Index de recherche construit en arrière-plan, une fois l'interface affichée.
+    window.setTimeout(() => {
+      prepareSearch(this.movies);
+      prepareSearch(this.shows);
+      prepareSearch(this.live);
+    }, 2000);
     const src = playlist.source;
     this.epg = new EpgStore(
       this.live,
