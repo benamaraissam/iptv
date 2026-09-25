@@ -17,13 +17,34 @@ try {
 
 let saveTimer: number | undefined;
 
+/**
+ * Réputation des hébergeurs d'images : les fournisseurs IPTV servent souvent leurs affiches
+ * depuis des serveurs à IP brute lents ou en panne. Après plusieurs échecs sur un même hôte,
+ * on n'attend plus ses images : on passe directement à l'image de secours (fiche / TMDB).
+ */
+const HOST_LIMIT = 4;
+const hostFails: Record<string, number> = {};
+
+function hostOf(url: string): string {
+  const m = /^[a-z]+:\/\/([^/]+)/i.exec(url);
+  return m ? m[1].toLowerCase() : '';
+}
+
+export function hostLooksDown(url: string): boolean {
+  return (hostFails[hostOf(url)] || 0) >= HOST_LIMIT;
+}
+
 function isBad(url: string): boolean {
   const at = bad[url];
-  return !!at && Date.now() - (at > 1 ? at : 0) < EXPIRY;
+  if (at && Date.now() - (at > 1 ? at : 0) < EXPIRY) return true;
+  return hostLooksDown(url);
 }
 
 export function markBadImage(url?: string): void {
-  if (!url || isBad(url)) return;
+  if (!url) return;
+  const host = hostOf(url);
+  if (host) hostFails[host] = (hostFails[host] || 0) + 1;
+  if (bad[url] && Date.now() - bad[url] < EXPIRY) return;
   bad[url] = Date.now();
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
@@ -45,6 +66,7 @@ export function hasGoodImage(url?: string | null): boolean {
 /** Oublie les images marquées comme cassées (Paramètres › Revérifier les images). */
 export function clearBadImages(): void {
   bad = {};
+  for (const k in hostFails) delete hostFails[k];
   try {
     localStorage.removeItem(KEY);
   } catch {

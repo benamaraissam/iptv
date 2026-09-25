@@ -1,5 +1,5 @@
 import { h, detach, clear } from './dom';
-import { hasGoodImage, markBadImage } from '../imgcache';
+import { hasGoodImage, hostLooksDown, markBadImage } from '../imgcache';
 import { proxied } from '../http';
 import { icon, type IconName } from './icons';
 import { focusEl, focusFirst, getNavRoot, setNavRoot } from '../navigation';
@@ -121,14 +121,30 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
   // Lien déjà connu comme cassé : on n'essaie même pas (pas de clignotement).
   if (src && hasGoodImage(src)) {
     let retried = false;
-    const fail = () => {
-      // Un échec isolé (serveur d'images saturé, coupure) ne suffit pas : on réessaie une fois,
-      // via le proxy en développement (pas de blocage « hotlink » ni de CORS).
-      if (!retried) {
+    let done = false;
+    let timer: number | undefined;
+    const arm = () => {
+      // Un hébergeur qui ne répond pas fait attendre le navigateur très longtemps :
+      // au-delà de 8 s, on considère l'image perdue et on passe à l'image de secours.
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => fail(true), 6000);
+    };
+    const fail = (timedOut = false) => {
+      if (done) return;
+      window.clearTimeout(timer);
+      // Un échec isolé (serveur saturé, coupure) ne suffit pas : on réessaie une fois,
+      // via le proxy en développement — sauf si l'hébergeur est déjà connu comme en panne,
+      // ou s'il n'a pas répondu du tout (réessayer ferait attendre encore).
+      if (!retried && !timedOut && !hostLooksDown(src)) {
         retried = true;
-        window.setTimeout(() => (img.src = proxied(src) !== src ? proxied(src) : src + (src.indexOf('?') === -1 ? '?' : '&') + '_r=1'), 1500);
+        window.setTimeout(() => {
+          if (done) return;
+          arm();
+          img.src = proxied(src) !== src ? proxied(src) : src + (src.indexOf('?') === -1 ? '?' : '&') + '_r=1';
+        }, 1500);
         return;
       }
+      done = true;
       detach(img);
       markBadImage(src);
       if (onFail) onFail();
@@ -141,10 +157,20 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
       on: {
         // Image vide de 1 × 1 pixel (fréquent dans les playlists) = pas d'image.
         // 0 × 0 correspond à un SVG sans taille : c'est une vraie image.
-        load: () => (img.naturalWidth === 1 && img.naturalHeight === 1 ? ((retried = true), fail()) : box.classList.add('loaded')),
+        load: () => {
+          if (img.naturalWidth === 1 && img.naturalHeight === 1) {
+            retried = true;
+            fail();
+            return;
+          }
+          done = true;
+          window.clearTimeout(timer);
+          box.classList.add('loaded');
+        },
         error: fail,
       },
     });
+    arm();
     img.src = src;
     box.appendChild(img);
   }

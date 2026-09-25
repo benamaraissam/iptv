@@ -94,11 +94,11 @@ export class Catalog {
 
   static async load(playlist: Playlist, force = false): Promise<Catalog> {
     if (!force) {
-      const cached = store.getCache<CacheData>(playlist.id);
+      const cached = await store.getCache<CacheData>(playlist.id);
       if (cached && cached.v === CACHE_VERSION) return new Catalog(playlist, cached);
     }
     const data = await Catalog.fetch(playlist);
-    store.setCache(playlist.id, data);
+    await store.setCache(playlist.id, data);
     return new Catalog(playlist, data);
   }
 

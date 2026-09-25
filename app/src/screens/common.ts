@@ -200,6 +200,10 @@ export function prefetchOnIntent(el: HTMLElement, item: import('../types').Chann
 }
 
 // ───── Affiches de secours (Xtream) ─────
+function imageHost(url?: string): string {
+  const m = url ? /^[a-z]+:\/\/([^/]+)/i.exec(url) : null;
+  return m ? m[1].toLowerCase() : '';
+}
 const posterQueue: (() => void)[] = [];
 let posterRunning = 0;
 
@@ -220,7 +224,11 @@ export function resolvePoster(x: import('../types').Channel | import('../types')
         .details(x)
         .then(
           (d) => {
-            const url = [d.poster, d.backdrop].filter((u) => u && u !== current && hasGoodImage(u))[0];
+            // On préfère une image hébergée ailleurs que l'image qui vient d'échouer
+            // (les fiches Xtream pointent souvent vers TMDB, fiable).
+            const badHost = imageHost(current);
+            const cands = [d.backdrop, d.poster].filter((u): u is string => !!u && u !== current && hasGoodImage(u));
+            const url = cands.filter((u) => imageHost(u) !== badHost)[0] || cands[0];
             if (url) {
               rememberPoster(x.id, url);
               if ('kind' in x) x.logo = url;

@@ -1,5 +1,6 @@
 import type { ItemRef, Playable, Playlist } from './types';
 import type { Lang } from './i18n';
+import { idbDel, idbGet, idbSet } from './idb';
 
 const P = 'sp.';
 
@@ -93,6 +94,7 @@ export function removePlaylist(id: string): void {
   remove('mylist.' + id);
   remove('history.' + id);
   remove('cache.' + id);
+  void idbDel('cache.' + id);
   remove('searches.' + id);
   const s = getSettings();
   if (s.activePlaylist === id) updateSettings({ activePlaylist: undefined });
@@ -100,12 +102,19 @@ export function removePlaylist(id: string): void {
 
 // ───────────── Cache du catalogue ─────────────
 
-export function getCache<T>(playlistId: string): T | null {
+/** Catalogue : IndexedDB (gros volumes), avec l'ancien emplacement localStorage en repli. */
+export async function getCache<T>(playlistId: string): Promise<T | null> {
+  const v = await idbGet<T>('cache.' + playlistId);
+  if (v !== undefined) return v;
   return read<T | null>('cache.' + playlistId, null);
 }
 
-export function setCache(playlistId: string, data: unknown): void {
-  if (!write('cache.' + playlistId, data)) remove('cache.' + playlistId);
+export async function setCache(playlistId: string, data: unknown): Promise<void> {
+  remove('cache.' + playlistId);
+  if (!(await idbSet('cache.' + playlistId, data))) {
+    // Pas d'IndexedDB (très vieux moteur) : on tente localStorage, sinon tant pis.
+    if (!write('cache.' + playlistId, data)) remove('cache.' + playlistId);
+  }
 }
 
 // ───────────── Ma liste ─────────────
