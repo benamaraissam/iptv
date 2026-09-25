@@ -1607,6 +1607,122 @@ html.kbd .seekbar:focus {
 .pl-error-actions > * {
   margin: 0.25rem;
 }
+/* Menu façon Netflix : panneau ancré en bas à droite, au-dessus des contrôles */
+.pl-menu {
+  position: absolute;
+  z-index: 7;
+  right: 1.6rem;
+  bottom: 7.4rem;
+  display: flex;
+  max-width: calc(100% - 3.2rem);
+  padding: 1rem 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  background: rgba(16, 18, 30, 0.96);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pl-menu:after {
+  content: '';
+  position: absolute;
+  right: 3.2rem;
+  bottom: -0.55rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  background: rgba(16, 18, 30, 0.96);
+  -webkit-transform: rotate(45deg);
+  transform: rotate(45deg);
+}
+.pl-menu-col {
+  min-width: 13rem;
+  max-width: 20rem;
+  padding: 0 0.6rem;
+}
+.pl-menu-col + .pl-menu-col {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+.pl-menu-title {
+  padding: 0 1rem 0.6rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+}
+.pl-menu-list {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+.pl-menu-opt {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.35rem 1rem 0.35rem 0.6rem;
+  border-radius: 0.35rem;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.95rem;
+  text-align: left;
+}
+.pl-menu-check {
+  width: 1.5rem;
+  flex-shrink: 0;
+  color: #fff;
+}
+.pl-menu-check .ic {
+  width: 1rem;
+  height: 1rem;
+  visibility: hidden;
+}
+.pl-menu-opt.selected {
+  color: #fff;
+  font-weight: 600;
+}
+.pl-menu-opt.selected .pl-menu-check .ic {
+  visibility: visible;
+}
+.pl-menu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pl-menu-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-menu-sub {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-menu-opt:hover,
+html.tv .pl-menu-opt:focus,
+html.kbd .pl-menu-opt:focus {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+/* Téléphone : feuille en bas sur toute la largeur */
+.layout-compact .pl-menu {
+  right: 0;
+  left: 0;
+  bottom: 0;
+  max-width: none;
+  border-radius: 1rem 1rem 0 0;
+  padding-bottom: calc(0.6rem + env(safe-area-inset-bottom));
+}
+.layout-compact .pl-menu:after {
+  display: none;
+}
+.layout-compact .pl-menu-col {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+}
+.layout-compact .pl-menu-list {
+  max-height: 40vh;
+}
+
 /* Reprise automatique : petite pastille en haut, pas de message bloquant */
 .pl-reconnect {
   position: absolute;

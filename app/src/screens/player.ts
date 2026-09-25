@@ -5,7 +5,7 @@ import type { Action } from '../platform';
 import { isTV } from '../platform';
 import { h, clear, pagedList } from '../ui/dom';
 import { icon } from '../ui/icons';
-import { art, btn, chooseOption, iconBtn } from '../ui/components';
+import { art, btn, iconBtn } from '../ui/components';
 import { channelNumber, groupIcon } from './common';
 import { allEpisodes, episodePlayable } from './detail';
 import { versionLabels } from '../versions';
@@ -286,37 +286,121 @@ export function player(params: Params): Screen {
   };
   el.appendChild(numEntry);
 
+  // ───── Menu façon Netflix : panneau en bas à droite, colonnes Langue / Audio / Sous-titres ─────
+  interface MenuColumn {
+    title: string;
+    options: { id: string; label: string; sub?: string }[];
+    current: string;
+    onSelect: (id: string) => void;
+    /** Le panneau reste ouvert après le choix (audio / sous-titres), sinon il se ferme. */
+    keepOpen?: boolean;
+  }
+  const menu = h('div', { class: 'pl-menu hidden' });
+  el.appendChild(menu);
+  let menuOpen = false;
+  const closeMenu = () => {
+    if (!menuOpen) return;
+    menuOpen = false;
+    menu.classList.add('hidden');
+    clear(menu);
+    if (menu.contains(document.activeElement) || !el.contains(document.activeElement)) focusEl(extras.querySelector<HTMLElement>('.pl-extra') || playBtn);
+    showOverlay();
+  };
+  const openMenu = (columns: MenuColumn[]) => {
+    clear(menu);
+    menu.classList.toggle('single', columns.length === 1);
+    let first: HTMLElement | null = null;
+    for (const col of columns) {
+      const list = h('div', { class: 'pl-menu-list scroll' });
+      for (const o of col.options) {
+        const selected = o.id === col.current;
+        const row = h(
+          'button',
+          {
+            type: 'button',
+            class: 'pl-menu-opt focusable' + (selected ? ' selected' : ''),
+            on: {
+              click: (ev: Event) => {
+                ev.stopPropagation();
+                const all = list.querySelectorAll('.pl-menu-opt');
+                for (let i = 0; i < all.length; i++) all[i].classList.remove('selected');
+                row.classList.add('selected');
+                col.onSelect(o.id);
+                if (!col.keepOpen) closeMenu();
+              },
+            },
+          },
+          h('span', { class: 'pl-menu-check' }, icon('check')),
+          h('span', { class: 'pl-menu-text' }, h('span', { class: 'pl-menu-label', text: o.label }), o.sub ? h('span', { class: 'pl-menu-sub', text: o.sub }) : null),
+        );
+        list.appendChild(row);
+        if (selected && !first) first = row;
+      }
+      menu.appendChild(h('div', { class: 'pl-menu-col' }, h('div', { class: 'pl-menu-title', text: col.title }), list));
+    }
+    menu.classList.remove('hidden');
+    menuOpen = true;
+    showOverlay(true);
+    const target = first || menu.querySelector<HTMLElement>('.pl-menu-opt');
+    if (target) {
+      focusEl(target);
+      const list = target.parentElement!;
+      list.scrollTop = Math.max(0, target.offsetTop - list.clientHeight / 2);
+    }
+  };
+  menu.addEventListener('click', (ev) => ev.stopPropagation());
+
   // ───── Pistes ─────
   const renderExtras = () => {
     clear(extras);
     const add = (ic: 'episodes' | 'audio' | 'subtitles' | 'quality' | 'info', label: string, fn: () => void) =>
-      extras.appendChild(h('button', { type: 'button', class: 'pl-extra focusable', on: { click: fn } }, icon(ic), h('span', { text: label })));
+      extras.appendChild(
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'pl-extra focusable',
+            on: {
+              click: (ev: Event) => {
+                ev.stopPropagation();
+                if (menuOpen) closeMenu();
+                else fn();
+              },
+            },
+          },
+          icon(ic),
+          h('span', { text: label }),
+        ),
+      );
     if (item.kind === 'episode' && hasQueue) add('episodes', t('episodes'), pickEpisode);
     add('info', t('stats'), toggleStats);
     if (isLive && hasQueue && !side) add('episodes', t('channels'), pickEpisode);
-    // Films / séries : la langue se choisit par version (autre catégorie du même titre).
+
+    // Un seul bouton « Audio et sous-titres », comme Netflix : colonnes Langue (version du
+    // film / de la série), Audio (pistes du flux) et Sous-titres.
+    const columns: MenuColumn[] = [];
     const versions = movieOrShowVersions();
-    if (versions.length > 1) add('audio', t('language'), () => pickVersion(versions));
-    const audio = engine.audioTracks();
-    if (audio.list.length > 1) {
-      add('audio', t('audio'), async () => {
-        const id = await chooseOption(t('audio'), audio.list, audio.current);
-        if (id !== null) engine.setAudio(id);
+    if (versions.length > 1) {
+      const labels = versionLabels(versions);
+      columns.push({
+        title: t('language'),
+        options: versions.map((v, i) => ({ id: String(i), label: labels[i], sub: v.group !== labels[i] ? v.group : undefined })),
+        current: '0',
+        onSelect: (id) => switchVersion(versions[parseInt(id, 10)]),
       });
     }
+    const audio = engine.audioTracks();
+    if (audio.list.length > 1) columns.push({ title: t('audio'), options: audio.list, current: audio.current, onSelect: (id) => engine.setAudio(id), keepOpen: true });
     const subs = engine.subtitleTracks();
     if (subs.list.length) {
-      add('subtitles', t('subtitles'), async () => {
-        const id = await chooseOption(t('subtitles'), [{ id: '-1', label: t('off') }].concat(subs.list), subs.current);
-        if (id !== null) engine.setSubtitle(id);
-      });
+      columns.push({ title: t('subtitles'), options: [{ id: '-1', label: t('off') }].concat(subs.list), current: subs.current, onSelect: (id) => engine.setSubtitle(id), keepOpen: true });
     }
+    if (columns.length) add('audio', t('audioSubs'), () => openMenu(columns));
     const levels = engine.levels();
     if (levels.list.length > 1) {
-      add('quality', t('quality'), async () => {
-        const id = await chooseOption(t('quality'), [{ id: '-1', label: t('auto') }].concat(levels.list.slice().reverse()), levels.current);
-        if (id !== null) engine.setLevel(id);
-      });
+      add('quality', t('quality'), () =>
+        openMenu([{ title: t('quality'), options: [{ id: '-1', label: t('auto') }].concat(levels.list.slice().reverse()), current: levels.current, onSelect: (id) => engine.setLevel(id) }]),
+      );
     }
   };
 
@@ -331,17 +415,15 @@ export function player(params: Params): Screen {
     }
     return [];
   };
-  const pickVersion = async (versions: (Channel | Show)[]) => {
-    const labels = versionLabels(versions);
-    const id = await chooseOption(t('language'), versions.map((_v, i) => ({ id: String(i), label: labels[i] })), '0');
-    if (id === null || id === '0') return;
-    const v = versions[parseInt(id, 10)];
+  const switchVersion = async (v: Channel | Show) => {
     const at = video.currentTime;
     saveProgress();
     if ('kind' in v) {
+      if (v.id === item.id) return;
       app.play({ id: v.id, kind: 'movie', title: item.title, subtitle: item.subtitle, url: v.url, poster: item.poster }, { at });
       return;
     }
+    if (v.id === item.showId) return;
     // Série : même saison / même épisode dans l'autre version.
     el.classList.add('buffering');
     const d = await cat.details(v);
@@ -351,13 +433,17 @@ export function player(params: Params): Screen {
     app.play(episodePlayable(v, d, same), { queue: eps.map((e) => episodePlayable(v, d, e)), index: eps.indexOf(same), at });
   };
 
-  const pickEpisode = async () => {
-    const id = await chooseOption(
-      isLive ? t('channels') : t('episodes'),
-      queue.map((q, i) => ({ id: String(i), label: isLive ? pad3(i + 1) + '  ' + q.title : q.subtitle || q.title })),
-      String(index),
-    );
-    if (id !== null && parseInt(id, 10) !== index) jump(parseInt(id, 10));
+  const pickEpisode = () => {
+    openMenu([
+      {
+        title: isLive ? t('channels') : t('episodes'),
+        options: queue.map((q, i) => ({ id: String(i), label: isLive ? pad3(i + 1) + '  ' + q.title : q.subtitle || q.title })),
+        current: String(index),
+        onSelect: (id) => {
+          if (parseInt(id, 10) !== index) jump(parseInt(id, 10));
+        },
+      },
+    ]);
   };
 
   // ───── État ─────
@@ -529,7 +615,7 @@ export function player(params: Params): Screen {
     if (!el.contains(document.activeElement) || document.activeElement === el) focusEl(playBtn);
   };
   const hideOverlay = () => {
-    if (!errorBox.classList.contains('hidden') || video.paused) return;
+    if (!errorBox.classList.contains('hidden') || video.paused || menuOpen) return;
     // On parcourt la liste des chaînes : on ne la ferme pas sous le curseur / le focus.
     if (side && (sideHover || side.contains(document.activeElement))) {
       window.clearTimeout(hideTimer);
@@ -540,6 +626,10 @@ export function player(params: Params): Screen {
     (document.activeElement as HTMLElement | null)?.blur?.();
   };
   el.addEventListener('click', (e) => {
+    if (menuOpen) {
+      closeMenu();
+      return;
+    }
     if (e.target === video || e.target === el || (e.target as HTMLElement).classList.contains('pl-overlay')) {
       if (el.classList.contains('show-ui')) hideOverlay();
       else showOverlay();
@@ -697,6 +787,10 @@ export function player(params: Params): Screen {
           setSide(!sideOpen);
           return true;
         case 'back':
+          if (menuOpen) {
+            closeMenu();
+            return true;
+          }
           if (side && sideOpen && (side.contains(document.activeElement) || isTV)) {
             setSide(false);
             return true;

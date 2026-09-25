@@ -156,6 +156,7 @@ const fr = {
   lowQualityMode: 'qualité réduite',
   nextChannel: 'Chaîne suivante',
   hideChannels: 'Masquer la liste',
+  audioSubs: 'Audio et sous-titres',
   // Profil / paramètres
   account: 'Compte',
   playlists: 'Mes playlists',
@@ -347,6 +348,7 @@ const en: Dict = {
   lowQualityMode: 'reduced quality',
   nextChannel: 'Next channel',
   hideChannels: 'Hide list',
+  audioSubs: 'Audio & subtitles',
   account: 'Account',
   playlists: 'My playlists',
   connectedDevices: 'Connections',
