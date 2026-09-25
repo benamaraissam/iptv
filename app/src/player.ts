@@ -31,6 +31,38 @@ export interface PlaybackStats {
 }
 
 /**
+ * Cause d'un échec de lecture :
+ * - network : serveur ou réseau injoignable (on retente)
+ * - format : conteneur / playlist illisible ici (on retente autrement)
+ * - codec : la vidéo elle-même (HEVC…) n'est pas décodable sur cet appareil (définitif)
+ * - denied : le fournisseur refuse l'accès (limite de connexions, abonnement) (définitif)
+ */
+export type PlaybackErrorKind = 'network' | 'format' | 'codec' | 'denied' | 'other';
+
+const DENIED_STATUS: Record<number, true> = { 401: true, 403: true, 429: true, 458: true, 509: true };
+
+/**
+ * Autre conteneur du même flux Xtream : le direct existe en HLS (.m3u8) et en MPEG-TS (.ts).
+ * Retourne undefined si l'appareil ne sait pas lire l'autre forme.
+ */
+export function alternateUrl(url: string, video: HTMLVideoElement): string | undefined {
+  const m = /^(.*\/live\/[^/]+\/[^/]+\/\d+)\.(m3u8|ts)(\?.*)?$/i.exec(url);
+  if (!m) return undefined;
+  if (m[2].toLowerCase() === 'ts') return m[1] + '.m3u8' + (m[3] || '');
+  return video.canPlayType('video/mp2t') || video.canPlayType('video/MP2T') ? m[1] + '.ts' + (m[3] || '') : undefined;
+}
+
+function codecUnsupported(codec?: string): boolean {
+  if (!codec) return false;
+  try {
+    const MS = (window as any).MediaSource;
+    return !!MS && typeof MS.isTypeSupported === 'function' && !MS.isTypeSupported('video/mp4;codecs="' + codec + '"');
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Lecture vidéo :
  * - iOS/Safari, Tizen et webOS lisent le HLS nativement dans <video>.
  * - Android WebView / Chrome passent par hls.js (Media Source Extensions).
@@ -40,9 +72,11 @@ export class Engine {
   readonly video: HTMLVideoElement;
   private hls: Hls | null = null;
   private loadToken = 0;
-  onError: (kind: 'network' | 'format' | 'other', detail?: string) => void = () => undefined;
+  onError: (kind: PlaybackErrorKind, detail?: string) => void = () => undefined;
   onTracks: () => void = () => undefined;
   quality: 'auto' | 'high' | 'low' = 'auto';
+  /** Mode dégradé (reconnexions répétées) : on s'en tient à la qualité la plus basse. */
+  degraded = false;
   /** URL en cours (permet au lecteur plein écran de reprendre l'aperçu sans coupure). */
   currentUrl: string | null = null;
   /** Déjà retenté avec hls.js (URL sans extension .m3u8 qui s'avère être du HLS). */
@@ -67,7 +101,10 @@ export class Engine {
         this.load(this.currentUrl, this.lastStart, true);
         return;
       }
-      this.fail(err.code === 2 ? 'network' : err.code === 4 || err.code === 3 ? 'format' : 'other');
+      const msg = String(err.message || '');
+      // Chrome : « PIPELINE_ERROR_DECODE » = vidéo non décodable (codec), pas un souci de flux.
+      const kind: PlaybackErrorKind = err.code === 2 ? 'network' : err.code === 3 && /DECODE/i.test(msg) ? 'codec' : err.code === 4 || err.code === 3 ? 'format' : 'other';
+      this.fail(kind, msg || undefined);
     });
     v.addEventListener('loadedmetadata', () => this.onTracks());
     // La lecture réelle est la meilleure vérification de l'état d'une chaîne.
@@ -81,7 +118,7 @@ export class Engine {
     this.video = v;
   }
 
-  private fail(kind: 'network' | 'format' | 'other', detail?: string): void {
+  private fail(kind: PlaybackErrorKind, detail?: string): void {
     if (this.currentUrl) setHealth(this.currentUrl, 'down');
     this.onError(kind, detail);
   }
@@ -122,6 +159,7 @@ export class Engine {
           backBufferLength: 30,
           startPosition: startAt > 0 ? startAt : -1,
           capLevelToPlayerSize: this.quality === 'auto',
+          startLevel: this.degraded || this.quality === 'low' ? 0 : -1,
           // Démarrage rapide : on télécharge le 1er segment en même temps que l'initialisation.
           startFragPrefetch: true,
           maxBufferLength: 20,
@@ -136,11 +174,18 @@ export class Engine {
         let mediaRecoveries = 0;
         hls.on(HlsCtor.Events.ERROR, (_evt, data) => {
           if (!data.fatal) return;
+          const status: number = (data.response && (data.response as any).code) || 0;
+          const level = hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : hls.levels[0];
+          const vcodec = level && level.videoCodec;
           // Deuxième essai (lien sans .m3u8) : ce n'était pas du HLS, le format n'est pas lisible ici.
-          if (forceHls && data.details === 'manifestParsingError') this.fail('format');
-          else if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) this.fail('network');
-          else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR && mediaRecoveries++ < 2) hls.recoverMediaError();
-          else this.fail('other', data.details);
+          if (forceHls && data.details === 'manifestParsingError') this.fail('format', data.details);
+          else if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) this.fail(DENIED_STATUS[status] ? 'denied' : 'network', 'HTTP ' + status + ' ' + data.details);
+          else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
+            if (data.details === 'bufferAddCodecError' || data.details === 'bufferIncompatibleCodecsError' || codecUnsupported(vcodec)) {
+              this.fail('codec', vcodec || data.details);
+            } else if (mediaRecoveries++ < 2) hls.recoverMediaError();
+            else this.fail('format', data.details);
+          } else this.fail('other', data.details);
         });
         hls.on(HlsCtor.Events.MANIFEST_LOADED, (_e, data: any) => {
           const st = data && data.stats && data.stats.loading;
@@ -322,8 +367,8 @@ export class Engine {
   private applyQuality(): void {
     const hls = this.hls;
     if (!hls || !hls.levels.length) return;
-    if (this.quality === 'high') hls.currentLevel = hls.levels.length - 1;
-    else if (this.quality === 'low') hls.currentLevel = 0;
+    if (this.degraded || this.quality === 'low') hls.autoLevelCapping = 0;
+    else if (this.quality === 'high') hls.currentLevel = hls.levels.length - 1;
   }
 
   get isLiveStream(): boolean {

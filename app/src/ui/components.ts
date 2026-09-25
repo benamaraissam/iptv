@@ -593,15 +593,15 @@ export function bgArt(url: string, title: string): HTMLElement {
   const cover = h('div', { class: 'bg-cover', style: 'background-image:url("' + safe + '")' });
   const sharp = h('img', { class: 'bg-sharp', alt: '', referrerpolicy: 'no-referrer' });
   const box = h('div', { class: 'bgart' }, cover, sharp);
+  // Un seul comportement, façon Netflix : l'image nette à ses proportions, centrée,
+  // jamais étirée ; une copie floutée remplit le reste de l'écran.
   const probe = new Image();
   probe.setAttribute('referrerpolicy', 'no-referrer');
   probe.onload = () => {
     const w = probe.naturalWidth;
     const hgt = probe.naturalHeight;
-    if (w && hgt && w / hgt < 1.25) {
-      box.classList.add('portrait');
-      sharp.src = url;
-    } else if (w && w < 900) box.classList.add('lowres');
+    box.classList.add(w && hgt && w / hgt < 1.25 ? 'portrait' : 'landscape');
+    sharp.src = url;
     box.classList.add('in');
   };
   probe.onerror = () => box.classList.add('in');

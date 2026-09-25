@@ -148,7 +148,9 @@ export function live(params: { group?: string; channelId?: string }): Screen {
       monSpinner.classList.add('hidden');
       clear(monError);
       monError.appendChild(icon('offline'));
-      monError.appendChild(h('p', { text: kind === 'network' ? t('streamUnreachable') : t('unsupported') }));
+      monError.appendChild(
+        h('p', { text: kind === 'denied' ? t('streamDenied') : kind === 'codec' ? t('codecUnsupported') : kind === 'network' ? t('streamUnreachable') : t('unsupported') }),
+      );
       monError.classList.remove('hidden');
     };
     if (!engine.isPlaying(ch.url)) {

@@ -11,6 +11,8 @@ import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatDuration, formatTime, t } from '../i18n';
+import { alternateUrl } from '../player';
+import type { PlaybackErrorKind } from '../player';
 
 interface Params {
   item: Playable;
@@ -291,16 +293,103 @@ export function player(params: Params): Screen {
   for (const [evt, fn] of listeners) video.addEventListener(evt, fn);
 
   engine.onTracks = renderExtras;
-  engine.onError = (kind) => {
+
+  // ───── Reprise automatique ─────
+  // Une coupure ne demande rien au spectateur : on se reconnecte tout seul, avec un
+  // délai croissant, en basculant en basse qualité puis sur l'autre conteneur du flux.
+  // Le message avec « Réessayer » n'apparaît qu'en dernier recours, ou quand retenter
+  // ne servirait à rien (accès refusé par le fournisseur, codec non décodable).
+  const MAX_ATTEMPTS = 4;
+  let attempts = 0;
+  let lastPos = 0;
+  let recoverTimer: number | undefined;
+  let stableTimer: number | undefined;
+  const reconnect = h('div', { class: 'pl-reconnect hidden' });
+  el.appendChild(reconnect);
+
+  const showError = (kind: PlaybackErrorKind, detail?: string) => {
+    window.clearTimeout(recoverTimer);
+    reconnect.classList.add('hidden');
     el.classList.remove('buffering');
     clear(errorBox);
     errorBox.appendChild(icon('offline'));
-    errorBox.appendChild(h('p', { text: kind === 'network' ? t('streamUnreachable') : t('unsupported') }));
-    errorBox.appendChild(btn(t('retry'), { variant: 'primary', icon: 'refresh', onClick: () => start(true) }));
+    const text = kind === 'denied' ? t('streamDenied') : kind === 'codec' ? t('codecUnsupported') : kind === 'network' ? t('streamDown') : t('unsupported');
+    errorBox.appendChild(h('p', { text }));
+    if (detail) errorBox.appendChild(h('div', { class: 'pl-error-detail', text: detail }));
+    const actions = h('div', { class: 'pl-error-actions' });
+    actions.appendChild(
+      btn(t('retry'), {
+        variant: 'primary',
+        icon: 'refresh',
+        onClick: () => {
+          attempts = 0;
+          engine.degraded = false;
+          start(true);
+        },
+      }),
+    );
+    if (isLive && queue.length > 1) actions.appendChild(btn(t('nextChannel'), { icon: 'chevron', onClick: () => go(1) }));
+    errorBox.appendChild(actions);
     errorBox.classList.remove('hidden');
     showOverlay(true);
     focusEl(errorBox.querySelector<HTMLElement>('button'));
   };
+
+  const recover = (kind: PlaybackErrorKind, detail?: string) => {
+    window.clearTimeout(recoverTimer);
+    window.clearTimeout(stableTimer);
+    if (kind === 'denied' || kind === 'codec') return showError(kind, detail);
+    attempts++;
+    if (attempts > MAX_ATTEMPTS) return showError(kind, detail);
+    // 1 s, 2 s, 4 s, 8 s ; à partir du 3e essai on se contente de la qualité la plus basse.
+    const delay = 1000 * Math.pow(2, attempts - 1);
+    engine.degraded = attempts >= 3;
+    // Format illisible : un essai sur deux avec l'autre conteneur (.m3u8 ↔ .ts) s'il existe.
+    const alt = kind === 'format' && attempts % 2 === 0 ? alternateUrl(item.url, video) : undefined;
+    reconnect.textContent = t('reconnecting') + ' ' + attempts + '/' + MAX_ATTEMPTS + (engine.degraded ? ' · ' + t('lowQualityMode') : '');
+    reconnect.classList.remove('hidden');
+    errorBox.classList.add('hidden');
+    el.classList.add('buffering');
+    recoverTimer = window.setTimeout(() => {
+      void engine.load(alt || item.url, isLive || item.kind === 'catchup' ? 0 : lastPos);
+    }, delay);
+  };
+  engine.onError = recover;
+
+  // La lecture tourne à nouveau : après 20 s stables, on repart avec un compteur neuf.
+  const onStable = () => {
+    reconnect.classList.add('hidden');
+    window.clearTimeout(stableTimer);
+    stableTimer = window.setTimeout(() => {
+      attempts = 0;
+      engine.degraded = false;
+    }, 20000);
+  };
+  video.addEventListener('playing', onStable);
+  const onProgress = () => {
+    if (video.currentTime > 0) lastPos = video.currentTime;
+  };
+  video.addEventListener('timeupdate', onProgress);
+
+  // Image figée : si le temps n'avance plus pendant 20 s alors qu'on est censé lire,
+  // le flux est mort sans que le navigateur ne le signale → on se reconnecte.
+  let stalledFor = 0;
+  let lastTick = -1;
+  const watchdog = window.setInterval(() => {
+    if (video.paused || video.ended || !engine.currentUrl || !errorBox.classList.contains('hidden')) {
+      stalledFor = 0;
+      lastTick = -1;
+      return;
+    }
+    if (video.currentTime === lastTick) {
+      stalledFor += 5;
+      if (stalledFor >= 20) {
+        stalledFor = 0;
+        recover('network', 'stalled');
+      }
+    } else stalledFor = 0;
+    lastTick = video.currentTime;
+  }, 5000);
 
   // Programme en cours pour le direct.
   if (isLive) {
@@ -382,6 +471,8 @@ export function player(params: Params): Screen {
   let saveTimer: number | undefined;
   const start = (force = false) => {
     errorBox.classList.add('hidden');
+    reconnect.classList.add('hidden');
+    window.clearTimeout(recoverTimer);
     el.classList.add('buffering');
     let startAt = 0;
     if (params.resume && !isLive) {
@@ -414,6 +505,12 @@ export function player(params: Params): Screen {
     },
     destroy: () => {
       window.clearInterval(statsTimer);
+      window.clearInterval(watchdog);
+      window.clearTimeout(recoverTimer);
+      window.clearTimeout(stableTimer);
+      video.removeEventListener('playing', onStable);
+      video.removeEventListener('timeupdate', onProgress);
+      engine.degraded = false;
       saveProgress();
       window.clearInterval(saveTimer);
       window.clearTimeout(hideTimer);

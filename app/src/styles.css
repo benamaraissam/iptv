@@ -1578,6 +1578,37 @@ html.kbd .seekbar:focus {
   margin: 0.8rem 0 1.1rem;
   color: var(--text-2);
 }
+.pl-error-detail {
+  margin: -0.6rem 0 0.9rem;
+  font-size: 0.72rem;
+  color: var(--text-3);
+  word-break: break-all;
+}
+.pl-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.pl-error-actions > * {
+  margin: 0.25rem;
+}
+/* Reprise automatique : petite pastille en haut, pas de message bloquant */
+.pl-reconnect {
+  position: absolute;
+  z-index: 6;
+  top: 1.5rem;
+  left: 50%;
+  -webkit-transform: translateX(-50%);
+  transform: translateX(-50%);
+  padding: 0.45rem 1rem;
+  border-radius: 2rem;
+  background: rgba(10, 16, 48, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-1);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
 .pl-num {
   position: absolute;
   top: 1.5rem;
@@ -4328,44 +4359,68 @@ html.kbd .ps-row:focus {
   right: 0;
   bottom: 0;
   background-size: cover;
-  background-position: center 22%;
-}
-.bgart.lowres .bg-cover {
-  -webkit-filter: blur(3px) saturate(1.1);
-  filter: blur(3px) saturate(1.1);
-  -webkit-transform: scale(1.04);
-  transform: scale(1.04);
-}
-.bgart.portrait .bg-cover {
-  -webkit-filter: blur(45px) saturate(1.5);
-  filter: blur(45px) saturate(1.5);
+  background-position: center 30%;
+  -webkit-filter: blur(40px) saturate(1.4);
+  filter: blur(40px) saturate(1.4);
   -webkit-transform: scale(1.2);
   transform: scale(1.2);
-  opacity: 0.55;
+  opacity: 0.6;
 }
 .bgart .bg-sharp {
-  display: none;
   position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  -webkit-transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%);
+  object-fit: contain;
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.55);
+}
+/* Écran large (TV / ordinateur) : l'image nette occupe la droite sur toute la hauteur,
+   le dégradé la fond dans le texte à gauche. */
+.bgart.landscape .bg-sharp {
+  left: auto;
+  right: 0;
+  top: 0;
+  height: 100%;
+  max-width: 70%;
+  -webkit-transform: none;
+  transform: none;
+  object-position: right center;
+  box-shadow: none;
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000 22%, #000 100%);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000 22%, #000 100%);
+}
+.bgart.portrait .bg-sharp {
+  left: auto;
   right: 6%;
   top: 7%;
   height: 86%;
-  width: auto;
   max-width: 42%;
-  object-fit: contain;
+  -webkit-transform: none;
+  transform: none;
   border-radius: 0.8rem;
-  box-shadow: 0 2rem 4rem rgba(0, 0, 0, 0.6);
 }
-.bgart.portrait .bg-sharp {
-  display: block;
-}
-.layout-compact .bgart .bg-sharp {
-  right: auto;
+/* Téléphone : image centrée à ses proportions, halo flou autour. */
+.layout-compact .bgart.landscape .bg-sharp,
+.layout-compact .bgart.portrait .bg-sharp {
   left: 50%;
-  top: 6%;
-  height: 62%;
+  right: auto;
+  top: 50%;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  -webkit-transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%);
+  object-position: center;
+}
+.layout-compact .bgart.portrait .bg-sharp {
+  top: 42%;
+  max-height: 68%;
   max-width: 68%;
-  -webkit-transform: translateX(-50%);
-  transform: translateX(-50%);
 }
 /* Le halo remplit aussi la zone masquée par le dégradé, sans bord visible */
 .detail-bg .bgart,
