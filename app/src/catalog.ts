@@ -178,13 +178,8 @@ export class Catalog {
   private async loadDetails(item: Channel | Show): Promise<Details> {
     const src = this.playlist.source;
     if ('kind' in item) {
-      if (src.type === 'xtream' && item.streamId) {
-        try {
-          return await xt.getMovieDetails(src, item);
-        } catch {
-          /* on retombe sur les infos de base */
-        }
-      }
+      // Échec réseau : on ne met PAS en cache un résultat vide (la prochaine demande réessaie).
+      if (src.type === 'xtream' && item.streamId) return xt.getMovieDetails(src, item);
       return { title: item.name, poster: item.logo, backdrop: item.logo, year: item.year, rating: item.rating };
     }
     if (src.type === 'xtream' && item.seriesId) return xt.getSeriesDetails(src, item);

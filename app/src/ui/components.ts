@@ -192,27 +192,14 @@ export function card(
   attrs: Record<string, string> = {},
 ): HTMLElement {
   const artCls = shape === 'channel' ? 'contain' : '';
-  let tried = false;
   let media: HTMLElement;
-  // Image absente / cassée : on tente une image de secours ; sinon la carte passe en fin de rangée.
-  const rescue = () => {
-    if (tried || !d.resolveImage) return false;
-    tried = true;
-    d.resolveImage().then((url) => {
-      const old = media && media.querySelector('.art');
-      if (url && hasGoodImage(url) && old && old.parentNode) {
-        old.parentNode.replaceChild(art(url, d.title, artCls, () => sendToBack(media)), old);
-      } else if (media) sendToBack(media);
-    });
-    return true;
-  };
   const el = h(
     'button',
     { type: 'button', class: 'card card-' + shape + ' focusable', on: { click: onClick } },
     (media = h(
       'div',
       { class: 'card-media' },
-      art(d.image, d.title, artCls, d.resolveImage ? () => void rescue() : undefined),
+      rescuableArt(d.image, d.title, artCls, d.resolveImage, () => sendToBack(media)),
       d.badge ? h('span', { class: 'badge', text: d.badge }) : null,
       d.fav ? h('span', { class: 'card-fav' }, icon('heart')) : null,
       d.locked ? h('span', { class: 'card-lock' }, icon('lock')) : null,
@@ -222,8 +209,41 @@ export function card(
     d.sub ? h('div', { class: 'card-sub', text: d.sub }) : null,
   );
   for (const k in attrs) el.setAttribute(k, attrs[k]);
-  if (d.resolveImage && !hasGoodImage(d.image)) rescue();
   return el;
+}
+
+/**
+ * Visuel avec image de secours : si l'image manque ou échoue (après réessai), `resolve`
+ * fournit une autre image (ex. affiche de la fiche détaillée) qui remplace le visuel.
+ * Sans image de secours possible, `giveUp` est appelé (la carte passe en fin de rangée).
+ * Utilisé par TOUTES les cartes : rangées, grilles, Top 10.
+ */
+export function rescuableArt(
+  image: string | undefined,
+  title: string,
+  cls: string,
+  resolve?: () => Promise<string | undefined>,
+  giveUp?: () => void,
+): HTMLElement {
+  let tried = false;
+  const rescue = (box: HTMLElement) => {
+    if (tried || !resolve) {
+      if (giveUp) giveUp();
+      return;
+    }
+    tried = true;
+    resolve().then(
+      (url) => {
+        if (url && hasGoodImage(url) && box.parentNode) {
+          box.parentNode.replaceChild(art(url, title, cls, giveUp), box);
+        } else if (giveUp) giveUp();
+      },
+      () => giveUp && giveUp(),
+    );
+  };
+  const box: HTMLElement = art(image, title, cls, () => rescue(box));
+  if (!hasGoodImage(image)) rescue(box);
+  return box;
 }
 
 /** Rangée horizontale défilante avec titre et « Tout voir ». */

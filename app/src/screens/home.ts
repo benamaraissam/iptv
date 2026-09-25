@@ -3,7 +3,7 @@ import { app, refOf } from '../app';
 import type { Channel, Details, Program, Show } from '../types';
 import { h, clear } from '../ui/dom';
 import { icon, logoMark, type IconName } from '../ui/icons';
-import { art, btn, card, iconBtn, rail } from '../ui/components';
+import { art, btn, card, iconBtn, rail, rescuableArt } from '../ui/components';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
@@ -300,7 +300,7 @@ export function home(): Screen {
           'button',
           { type: 'button', class: 'card card-top focusable', on: { click: () => app.openItem(x) } },
           h('span', { class: 'top-num', text: String(i + 1) }),
-          h('div', { class: 'card-media' }, art(posterOf(x), x.name)),
+          h('div', { class: 'card-media' }, rescuableArt(posterOf(x), x.name, '', () => resolvePoster(x))),
         ),
         { kind: 'item', x },
       ),
