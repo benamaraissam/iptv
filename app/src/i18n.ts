@@ -157,6 +157,7 @@ const fr = {
   nextChannel: 'Chaîne suivante',
   hideChannels: 'Masquer la liste',
   audioSubs: 'Audio et sous-titres',
+  allLanguages: 'Toutes les langues',
   // Profil / paramètres
   account: 'Compte',
   playlists: 'Mes playlists',
@@ -349,6 +350,7 @@ const en: Dict = {
   nextChannel: 'Next channel',
   hideChannels: 'Hide list',
   audioSubs: 'Audio & subtitles',
+  allLanguages: 'All languages',
   account: 'Account',
   playlists: 'My playlists',
   connectedDevices: 'Connections',

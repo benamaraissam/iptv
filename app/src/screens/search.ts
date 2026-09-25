@@ -8,6 +8,7 @@ import * as store from '../storage';
 import { t } from '../i18n';
 import { posterCard } from './vod';
 import { brandClock, imageFirst } from './common';
+import { languageOf } from '../versions';
 
 const MAX_RESULTS = 60;
 
@@ -27,7 +28,25 @@ export function search(): Screen {
   const cat = app.catalog!;
   const pid = cat.playlist.id;
   let scope = 'all';
+  let lang = '';
   let timer: number | undefined;
+
+  // Langue de chaque élément (déduite de sa catégorie / de son titre), calculée une fois.
+  const langCache = new Map<string, string>();
+  const langOf = (x: { id: string; name: string; group: string }): string => {
+    let l = langCache.get(x.id);
+    if (l === undefined) {
+      l = languageOf(x) || '';
+      langCache.set(x.id, l);
+    }
+    return l;
+  };
+  const langCounts: Record<string, number> = {};
+  for (const x of (cat.movies as { id: string; name: string; group: string }[]).concat(cat.shows, cat.live)) {
+    const l = langOf(x);
+    if (l) langCounts[l] = (langCounts[l] || 0) + 1;
+  }
+  const langs = Object.keys(langCounts).sort((a, b) => langCounts[b] - langCounts[a]);
 
   const input = h('input', {
     class: 'input search-input focusable',
@@ -38,7 +57,7 @@ export function search(): Screen {
   });
   const body = h('div', { class: 'scroll search-body' });
 
-  const open = <T extends { group: string }>(list: T[]) => list.filter((x) => !app.isLocked(x.group));
+  const open = <T extends { id: string; name: string; group: string }>(list: T[]) => list.filter((x) => !app.isLocked(x.group) && (!lang || langOf(x) === lang));
 
   const render = () => {
     clear(body);
@@ -121,13 +140,27 @@ export function search(): Screen {
     },
   );
 
+  // Filtre par langue (films, séries, chaînes), quand le catalogue en distingue plusieurs.
+  const langChips =
+    langs.length > 1
+      ? chips(
+          [{ id: '', label: t('allLanguages') }].concat(langs.map((l) => ({ id: l, label: l }))),
+          lang,
+          (id) => {
+            lang = id;
+            render();
+          },
+        )
+      : null;
+  if (langChips) langChips.classList.add('lang-chips');
+
   const header = app.wide
     ? h('header', { class: 'tv-header' }, h('h1', { class: 'screen-title', text: t('search') }), brandClock())
     : screenHeader(t('search'));
 
   render();
   return {
-    el: h('section', { class: 'search' }, header, h('div', { class: 'search-bar' }, icon('search', 'search-ic'), input), scopes, body),
+    el: h('section', { class: 'search' }, header, h('div', { class: 'search-bar' }, icon('search', 'search-ic'), input), scopes, langChips, body),
     chrome: 'nav',
     tab: 'search',
     destroy: () => window.clearTimeout(timer),
