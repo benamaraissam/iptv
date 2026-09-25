@@ -2,7 +2,7 @@ import type { Screen } from '../app';
 import { app } from '../app';
 import type { Channel, Program } from '../types';
 import { h, clear, pagedList } from '../ui/dom';
-import { btn, chips, emptyState, openModal, screenHeader } from '../ui/components';
+import { art, btn, chips, emptyState, openModal, screenHeader } from '../ui/components';
 import { formatDay, formatTime, startOfDay, t } from '../i18n';
 import { brandClock, channelNumber } from './common';
 
@@ -44,7 +44,7 @@ export function guide(): Screen {
   // Les lignes doivent faire toute la largeur défilable, sinon la colonne
   // des chaînes (position: sticky) disparaît avec sa ligne.
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  const fullWidth = Math.ceil(width + (app.wide ? 12 : 5.6) * rem) + 'px';
+  const fullWidth = Math.ceil(width + (app.wide ? 15 : 7) * rem) + 'px';
 
   const render = () => {
     clear(grid);
@@ -81,11 +81,12 @@ export function guide(): Screen {
         'button',
         { type: 'button', class: 'epg-channel focusable', on: { click: () => void app.openChannel(ch) } },
         h('span', { class: 'num', text: channelNumber(ch) }),
+        h('div', { class: 'epg-logo' }, art(ch.logo, ch.name, 'contain')),
         h('span', { class: 'name', text: ch.name }),
       ),
       track,
     );
-    track.appendChild(h('div', { class: 'epg-loading' }));
+    track.appendChild(h('div', { class: 'epg-loading', text: t('loading') }));
     cat.epg.programs(ch, true).then((list) => {
       clear(track);
       const dayEnd = day + 86400000;

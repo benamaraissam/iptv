@@ -125,7 +125,13 @@ export class EpgStore {
     if (fetcher && ch.streamId) {
       await this.slot();
       try {
-        return await fetcher(ch);
+        let list = await fetcher(ch).catch(() => [] as Program[]);
+        // Beaucoup de panels ne remplissent pas le guide complet (get_simple_data_table) :
+        // on se rabat sur le guide court (get_short_epg), qui donne les prochaines heures.
+        if (!list.length && full && this.xtreamFetch && this.xtreamFetch !== fetcher) {
+          list = await this.xtreamFetch(ch).catch(() => [] as Program[]);
+        }
+        return list;
       } finally {
         this.release();
       }
@@ -151,7 +157,7 @@ export class EpgStore {
 
   // Limite à 4 requêtes simultanées pour ne pas saturer le serveur.
   private slot(): Promise<void> {
-    if (this.running < 4) {
+    if (this.running < 6) {
       this.running++;
       return Promise.resolve();
     }

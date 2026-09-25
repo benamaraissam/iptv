@@ -271,7 +271,7 @@ export async function getSeriesDetails(c: XtreamCredentials, show: Show): Promis
 }
 
 /** Programmes à venir d'une chaîne (EPG court). */
-export async function getShortEpg(c: XtreamCredentials, streamId: number, limit = 12): Promise<Program[]> {
+export async function getShortEpg(c: XtreamCredentials, streamId: number, limit = 40): Promise<Program[]> {
   const r = await get<{ epg_listings?: any[] }>(
     api(c, '&action=get_short_epg&stream_id=' + streamId + '&limit=' + limit),
   );
