@@ -6,6 +6,7 @@ import { art, btn, chips, emptyState, heartBtn, iconBtn, screenHeader, type Chip
 import { icon } from '../ui/icons';
 import { focusEl } from '../navigation';
 import { currentProgram, nextProgram } from '../epg';
+import { cancelPending, check, getHealth, onHealth, type Health } from '../health';
 import * as store from '../storage';
 import { formatTime, t } from '../i18n';
 import { brandClock, channelNumber } from './common';
@@ -27,6 +28,9 @@ export function live(params: { group?: string }): Screen {
   let preview: Channel | null = null;
   let infoTimer: number | undefined;
   let destroyed = false;
+  // Vérification automatique pour les playlists M3U. Pour Xtream, chaque test ouvre
+  // une connexion sur le compte (souvent limité à 1-2) : on laisse l'utilisateur la lancer.
+  const autoCheck = cat.playlist.source.type === 'm3u';
 
   // ───── Données ─────
   const favIds = (): Record<string, boolean> => {
@@ -173,7 +177,7 @@ export function live(params: { group?: string }): Screen {
   };
 
   // ───── Liste ─────
-  const listScroll = h('div', { class: 'scroll live-list' });
+  const listScroll = h('div', { class: 'scroll live-list scroll-left' });
   const list = h('div', { class: 'ch-list' });
   listScroll.appendChild(list);
   let pager: { renderUntil(i: number): void } | null = null;
@@ -194,8 +198,9 @@ export function live(params: { group?: string }): Screen {
       'button',
       {
         type: 'button',
-        class: 'ch-row focusable' + (app.inMyList(ch.id) ? ' is-fav' : '') + (preview && preview.id === ch.id ? ' playing' : ''),
+        class: 'ch-row focusable' + (app.inMyList(ch.id) ? ' is-fav' : '') + (preview && preview.id === ch.id ? ' playing' : '') + ' h-' + getHealth(ch.url),
         'data-id': ch.id,
+        'data-url': ch.url,
         on: {
           click: () => (preview && preview.id === ch.id ? fullscreen() : startPreview(ch)),
           contextmenu: (e: Event) => {
@@ -205,8 +210,15 @@ export function live(params: { group?: string }): Screen {
         },
       },
       h('span', { class: 'ch-num', text: channelNumber(ch) }),
-      h('div', { class: 'ch-logo' }, art(ch.logo, ch.name, 'contain')),
-      h('div', { class: 'ch-text' }, h('div', { class: 'ch-name', text: ch.name }), prog, h('div', { class: 'ch-bar' }, bar)),
+      h('div', { class: 'ch-logo' }, art(ch.logo, ch.name, 'contain'), h('span', { class: 'ch-dot', title: t('channelStatus') })),
+      h(
+        'div',
+        { class: 'ch-text' },
+        h('div', { class: 'ch-name', text: ch.name }),
+        prog,
+        h('div', { class: 'ch-state' }, icon('offline'), h('span', { text: t('channelDown') })),
+        h('div', { class: 'ch-bar' }, bar),
+      ),
       h('span', { class: 'ch-fav' }, icon('heart')),
       h('span', { class: 'ch-eq' }, h('i'), h('i'), h('i')),
     );
@@ -222,13 +234,55 @@ export function live(params: { group?: string }): Screen {
       if (cached) fill(cached);
       else cat.epg.programs(ch).then(fill, () => undefined);
     }
+    if (autoCheck) check(ch.url);
     return el;
   };
+
+  // ───── État des chaînes ─────
+  const summary = h('div', { class: 'ch-summary' });
+  let summaryTimer: number | undefined;
+  const renderSummary = () => {
+    window.clearTimeout(summaryTimer);
+    summaryTimer = window.setTimeout(() => {
+      let ok = 0;
+      let down = 0;
+      let checking = 0;
+      for (const c of items) {
+        const hs = getHealth(c.url);
+        if (hs === 'ok') ok++;
+        else if (hs === 'down') down++;
+        else if (hs === 'checking') checking++;
+      }
+      clear(summary);
+      summary.appendChild(h('span', { class: 'sum-total', text: items.length + ' ' + t('channels').toLowerCase() }));
+      if (ok) summary.appendChild(h('span', { class: 'sum sum-ok' }, h('i'), ok + ' ' + t('online')));
+      if (down) summary.appendChild(h('span', { class: 'sum sum-down' }, h('i'), down + ' ' + t('offlineCount')));
+      if (checking) summary.appendChild(h('span', { class: 'sum sum-checking' }, h('i'), t('checking')));
+    }, 150);
+  };
+  const applyHealth = (url: string, st: Health) => {
+    const rows = list.querySelectorAll<HTMLElement>('.ch-row');
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].getAttribute('data-url') !== url) continue;
+      rows[i].classList.remove('h-unknown', 'h-checking', 'h-ok', 'h-down');
+      rows[i].classList.add('h-' + st);
+    }
+    renderSummary();
+  };
+  const offHealth = onHealth(applyHealth);
+  const checkAll = () => {
+    cancelPending();
+    for (const c of items) check(c.url, true);
+    renderSummary();
+  };
+  const checkBtn = btn(wide ? t('checkChannels') : null, { variant: wide ? 'glass' : 'icon', icon: 'wifi', title: t('checkChannels'), onClick: checkAll, cls: 'check-btn' });
 
   const renderList = () => {
     clear(list);
     listScroll.scrollTop = 0;
+    cancelPending();
     items = current();
+    renderSummary();
     if (!items.length) {
       pager = null;
       list.appendChild(
@@ -248,50 +302,13 @@ export function live(params: { group?: string }): Screen {
     return true;
   };
 
-  let catsEl: HTMLElement;
-  if (wide) {
-    const ids = favIds();
-    type CatEntry = { id: string; label: string; count: number; ic?: 'heart' | 'grid' | 'lock' };
-    const base: CatEntry[] = [
-      { id: 'all', label: t('all'), count: cat.live.filter((c) => !app.isLocked(c.group)).length, ic: 'grid' },
-      { id: 'fav', label: t('favorites'), count: cat.live.filter((c) => ids[c.id]).length, ic: 'heart' },
-    ];
-    const entries = base.concat(
-      groups.map((g): CatEntry => ({ id: 'g:' + g, label: g, count: cat.live.filter((c) => c.group === g).length, ic: app.isLocked(g) ? 'lock' : undefined })),
-    );
-    catsEl = h(
-      'nav',
-      { class: 'scroll live-cats' },
-      entries.map((e) =>
-        h(
-          'button',
-          {
-            type: 'button',
-            class: 'cat-item focusable' + (e.id === filter ? ' selected' : ''),
-            'data-cat': e.id,
-            on: {
-              click: async (ev: Event) => {
-                const target = ev.currentTarget as HTMLElement;
-                if (!(await selectFilter(e.id))) return;
-                const prev = catsEl.querySelector('.cat-item.selected');
-                if (prev) prev.classList.remove('selected');
-                target.classList.add('selected');
-              },
-            },
-          },
-          e.ic ? icon(e.ic) : null,
-          h('span', { class: 'cat-label', text: e.label }),
-          h('span', { class: 'cat-count', text: String(e.count) }),
-        ),
-      ),
-    );
-  } else {
-    const options: ChipOption[] = [
-      { id: 'all', label: t('all') },
-      { id: 'fav', label: t('favorites') },
-    ].concat(groups.map((g) => ({ id: 'g:' + g, label: (app.isLocked(g) ? '🔒 ' : '') + g })));
-    catsEl = chips(options, filter, (id) => void selectFilter(id));
-  }
+  // Filtres en puces au-dessus de la liste (mobile et TV).
+  const options: ChipOption[] = [
+    { id: 'all', label: t('all') },
+    { id: 'fav', label: t('favorites') },
+  ].concat(groups.map((g) => ({ id: 'g:' + g, label: (app.isLocked(g) ? '🔒 ' : '') + g })));
+  const catsEl = chips(options, filter, (id) => void selectFilter(id));
+  catsEl.classList.add('live-filters');
 
   // ───── Mise en page ─────
   let el: HTMLElement;
@@ -314,8 +331,14 @@ export function live(params: { group?: string }): Screen {
       h(
         'div',
         { class: 'live-layout' },
-        catsEl,
-        h('div', { class: 'live-list-col' }, h('div', { class: 'live-search-wrap' }, icon('search', 'search-ic'), search), listScroll),
+        h(
+          'div',
+          { class: 'live-list-col' },
+          h('div', { class: 'live-list-head' }, h('div', { class: 'live-search-wrap' }, icon('search', 'search-ic'), search), checkBtn),
+          catsEl,
+          summary,
+          listScroll,
+        ),
         h('aside', { class: 'live-monitor-col' }, monitor),
       ),
     );
@@ -323,9 +346,10 @@ export function live(params: { group?: string }): Screen {
     el = h(
       'section',
       { class: 'live live-compact' },
-      screenHeader(t('liveTv'), { actions: [iconBtn('guide', t('tvGuide'), () => app.push('guide'))] }),
+      screenHeader(t('liveTv'), { actions: [checkBtn, iconBtn('guide', t('tvGuide'), () => app.push('guide'))] }),
       monitor,
       catsEl,
+      summary,
       listScroll,
     );
   }
@@ -378,6 +402,9 @@ export function live(params: { group?: string }): Screen {
     destroy: () => {
       destroyed = true;
       window.clearTimeout(infoTimer);
+      window.clearTimeout(summaryTimer);
+      offHealth();
+      cancelPending();
       engine.video.removeEventListener('waiting', onWaiting);
       engine.video.removeEventListener('playing', onPlaying);
       if (app.current !== 'player' && engine.video.parentNode === screenBox) engine.stop();

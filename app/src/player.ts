@@ -1,4 +1,5 @@
 import type Hls from 'hls.js';
+import { setHealth } from './health';
 
 export interface Track {
   id: string;
@@ -30,10 +31,19 @@ export class Engine {
     v.addEventListener('error', () => {
       const err = v.error;
       if (!err || !v.getAttribute('src')) return;
-      this.onError(err.code === 2 ? 'network' : err.code === 4 || err.code === 3 ? 'format' : 'other');
+      this.fail(err.code === 2 ? 'network' : err.code === 4 || err.code === 3 ? 'format' : 'other');
     });
     v.addEventListener('loadedmetadata', () => this.onTracks());
+    // La lecture réelle est la meilleure vérification de l'état d'une chaîne.
+    v.addEventListener('playing', () => {
+      if (this.currentUrl) setHealth(this.currentUrl, 'ok');
+    });
     this.video = v;
+  }
+
+  private fail(kind: 'network' | 'format' | 'other', detail?: string): void {
+    if (this.currentUrl) setHealth(this.currentUrl, 'down');
+    this.onError(kind, detail);
   }
 
   async load(url: string, startAt = 0): Promise<void> {
@@ -68,9 +78,9 @@ export class Engine {
         let mediaRecoveries = 0;
         hls.on(HlsCtor.Events.ERROR, (_evt, data) => {
           if (!data.fatal) return;
-          if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) this.onError('network');
+          if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) this.fail('network');
           else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR && mediaRecoveries++ < 2) hls.recoverMediaError();
-          else this.onError('other', data.details);
+          else this.fail('other', data.details);
         });
         hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
           this.applyQuality();
