@@ -29,9 +29,13 @@ export function setPauseDuringPlayback(on: boolean): void {
   pump();
 }
 
+let resumeTimer: number | undefined;
 export function setPlaybackActive(on: boolean): void {
   playing = on;
-  if (!on) pump();
+  window.clearTimeout(resumeTimer);
+  // Un changement de chaîne arrête puis relance la lecture aussitôt : on attend un peu
+  // avant de reprendre les vérifications, pour ne pas concurrencer le nouveau flux.
+  if (!on) resumeTimer = window.setTimeout(() => !playing && pump(), 2500);
 }
 
 export function checksPaused(): boolean {

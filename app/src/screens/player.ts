@@ -1,5 +1,5 @@
 import type { Screen } from '../app';
-import { app } from '../app';
+import { app, channelPlayable } from '../app';
 import type { Channel, Playable, Show } from '../types';
 import type { Action } from '../platform';
 import { isTV } from '../platform';
@@ -36,9 +36,9 @@ export function player(params: Params): Screen {
   const video = engine.video;
   const cat = app.catalog!;
   const pid = cat.playlist.id;
-  const item = params.item;
+  let item = params.item;
   const isLive = item.kind === 'live';
-  const queue = params.queue;
+  let queue = params.queue;
   let index = params.index;
 
   const el = h('section', { class: 'player' });
@@ -93,6 +93,7 @@ export function player(params: Params): Screen {
   // Catégories à gauche, chaînes à droite. Elle reste affichée tant qu'on ne la ferme pas
   // (bouton ✕, touche jaune ou Retour) ; un onglet « Chaînes » permet de la rouvrir.
   const allLive = isLive ? cat.live.filter((c) => !app.isLocked(c.group)) : [];
+  let markCurrent: () => void = () => undefined;
   const side = isLive && allLive.length > 1 ? buildChannelSidebar() : null;
   let sideHover = false;
   function buildChannelSidebar(): HTMLElement {
@@ -125,17 +126,21 @@ export function player(params: Params): Screen {
         {
           type: 'button',
           class: 'ps-row focusable' + (current ? ' current' : ''),
+          'data-id': ch.id,
           on: {
             click: (ev: Event) => {
               ev.stopPropagation();
-              if (!current) app.playChannel(ch, listOf(sideGroup));
+              if (ch.id === item.id) return;
+              // Changement de chaîne sur place : la file devient la liste affichée.
+              const list = listOf(sideGroup);
+              switchLive(Math.max(0, list.indexOf(ch)), list.map(channelPlayable));
             },
           },
         },
         h('span', { class: 'ps-num', text: channelNumber(ch) }),
         h('div', { class: 'ps-logo' }, art(ch.logo, ch.name, 'contain')),
         h('div', { class: 'ps-text' }, h('div', { class: 'ps-name', text: ch.name }), prog),
-        current ? h('span', { class: 'ch-eq' }, h('i'), h('i'), h('i')) : null,
+        h('span', { class: 'ch-eq' }, h('i'), h('i'), h('i')),
       );
     };
     const count = h('span', { class: 'pl-side-count' });
@@ -160,6 +165,17 @@ export function player(params: Params): Screen {
       }
     });
     const searchBox = h('div', { class: 'pl-side-search' }, icon('search', 'search-ic'), searchInput);
+    // Chaîne en cours : on déplace juste le marqueur (pas de reconstruction de la liste).
+    markCurrent = () => {
+      const prev = inner.querySelector<HTMLElement>('.ps-row.current');
+      if (prev) prev.classList.remove('current');
+      const next = inner.querySelector<HTMLElement>('.ps-row[data-id="' + item.id.replace(/"/g, '') + '"]');
+      if (next) {
+        next.classList.add('current');
+        const top = next.offsetTop - scroller.scrollTop;
+        if (top < 0 || top > scroller.clientHeight - next.offsetHeight) scroller.scrollTop = Math.max(0, next.offsetTop - scroller.clientHeight / 3);
+      } else renderList();
+    };
     const renderList = () => {
       clear(inner);
       const list = listOf(sideGroup);
@@ -627,15 +643,19 @@ export function player(params: Params): Screen {
   }, 5000);
 
   // Programme en cours pour le direct.
-  if (isLive) {
+  const loadProgram = () => {
+    if (!isLive) return;
     const ch = cat.get(item.id) as Channel | undefined;
+    const forId = item.id;
     if (ch && cat.epg.available) {
       cat.epg.programs(ch).then((list) => {
+        if (item.id !== forId) return;
         const p = currentProgram(list);
         if (p) subtitle.textContent = p.title + ' · ' + formatTime(p.start) + ' – ' + formatTime(p.end);
-      });
+      }, () => undefined);
     }
-  }
+  };
+  loadProgram();
 
   // ───── Affichage des contrôles ─────
   let hideTimer: number | undefined;
@@ -682,7 +702,31 @@ export function player(params: Params): Screen {
   });
 
   // ───── Navigation dans la file ─────
+  // Direct : on change de chaîne sur place (pas de reconstruction de l'écran, pas de
+  // sortie du plein écran) ; films / épisodes : nouvel écran (reprise, file d'épisodes).
+  const switchLive = (i: number, list?: Playable[]) => {
+    if (list) queue = list;
+    index = i;
+    item = queue[i];
+    title.textContent = item.title;
+    subtitle.textContent = item.subtitle || '';
+    attempts = 0;
+    engine.degraded = false;
+    window.clearTimeout(recoverTimer);
+    errorBox.classList.add('hidden');
+    reconnect.classList.add('hidden');
+    if (menuOpen) closeMenu();
+    el.classList.add('buffering');
+    store.recordHistory(pid, item, 0, 0);
+    void engine.load(item.url);
+    updatePlay();
+    markCurrent();
+    loadProgram();
+    renderExtras();
+    showOverlay();
+  };
   const jump = (i: number) => {
+    if (isLive) return switchLive(i);
     saveProgress();
     app.play(queue[i], { queue, index: i });
   };

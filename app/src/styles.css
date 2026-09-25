@@ -4331,6 +4331,9 @@ html.tv .pl-side-head {
   color: var(--primary-2);
 }
 .ps-row .ch-eq {
+  display: none;
+}
+.ps-row.current .ch-eq {
   display: flex;
 }
 .ps-row:hover,
