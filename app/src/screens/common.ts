@@ -227,7 +227,9 @@ export function resolvePoster(x: import('../types').Channel | import('../types')
             // On préfère une image hébergée ailleurs que l'image qui vient d'échouer
             // (les fiches Xtream pointent souvent vers TMDB, fiable).
             const badHost = imageHost(current);
-            const cands = [d.backdrop, d.poster].filter((u): u is string => !!u && u !== current && hasGoodImage(u));
+            // Séries : l'image du premier épisode (souvent une image TMDB) est aussi candidate.
+            const firstEp = d.seasons && d.seasons[0] && d.seasons[0].episodes[0];
+            const cands = [d.backdrop, d.poster, firstEp && firstEp.image].filter((u): u is string => !!u && u !== current && hasGoodImage(u));
             const url = cands.filter((u) => imageHost(u) !== badHost)[0] || cands[0];
             if (url) {
               rememberPoster(x.id, url);

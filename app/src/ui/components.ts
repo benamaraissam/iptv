@@ -1,5 +1,5 @@
 import { h, detach, clear } from './dom';
-import { hasGoodImage, hostLooksDown, markBadImage } from '../imgcache';
+import { hasGoodImage, hostLooksDown, hostProxyState, markBadImage, markHostProxy, worthTrying } from '../imgcache';
 import { proxied } from '../http';
 import { icon, type IconName } from './icons';
 import { focusEl, focusFirst, getNavRoot, setNavRoot } from '../navigation';
@@ -118,29 +118,31 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
   });
   const fallback = h('span', { class: 'art-initials', text: initials(name) });
   box.appendChild(fallback);
-  // Lien déjà connu comme cassé : on n'essaie même pas (pas de clignotement).
-  if (src && hasGoodImage(src)) {
+  const canProxy = !!src && proxied(src) !== src;
+  if (src && worthTrying(src, canProxy)) {
+    let viaProxy = false;
     let retried = false;
     let done = false;
     let timer: number | undefined;
     const arm = () => {
       // Un hébergeur qui ne répond pas fait attendre le navigateur très longtemps :
-      // au-delà de 8 s, on considère l'image perdue et on passe à l'image de secours.
+      // au-delà de 6 s, on considère l'image perdue et on passe à l'image de secours.
       window.clearTimeout(timer);
       timer = window.setTimeout(() => fail(true), 6000);
     };
     const fail = (timedOut = false) => {
       if (done) return;
       window.clearTimeout(timer);
-      // Un échec isolé (serveur saturé, coupure) ne suffit pas : on réessaie une fois,
-      // via le proxy en développement — sauf si l'hébergeur est déjà connu comme en panne,
-      // ou s'il n'a pas répondu du tout (réessayer ferait attendre encore).
-      if (!retried && !timedOut && !hostLooksDown(src)) {
+      if (viaProxy) markHostProxy(src, false);
+      // Un échec direct isolé (serveur saturé, coupure) ne suffit pas : on réessaie une fois
+      // via le proxy en développement — sauf si l'hébergeur n'a pas répondu du tout.
+      if (!retried && !viaProxy && !timedOut && canProxy && hostProxyState(src) !== 'no') {
         retried = true;
+        viaProxy = true;
         window.setTimeout(() => {
           if (done) return;
           arm();
-          img.src = proxied(src) !== src ? proxied(src) : src + (src.indexOf('?') === -1 ? '?' : '&') + '_r=1';
+          img.src = proxied(src);
         }, 1500);
         return;
       }
@@ -152,7 +154,6 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
     };
     const img = h('img', {
       alt: '',
-      loading: 'lazy',
       referrerpolicy: 'no-referrer',
       on: {
         // Image vide de 1 × 1 pixel (fréquent dans les playlists) = pas d'image.
@@ -165,16 +166,53 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
           }
           done = true;
           window.clearTimeout(timer);
+          if (viaProxy) markHostProxy(src, true);
           box.classList.add('loaded');
         },
-        error: fail,
+        error: () => fail(),
       },
     });
-    arm();
-    img.src = src;
     box.appendChild(img);
+    // Chargement différé maison : l'image (et son délai) ne démarre que lorsque la carte
+    // approche de l'écran. Le choix direct / proxy se fait à ce moment-là, avec ce qu'on
+    // a appris entre-temps sur l'hébergeur.
+    lazyStart(img, () => {
+      if (done) return;
+      if (!worthTrying(src, canProxy)) return fail(true);
+      viaProxy = canProxy && (hostProxyState(src) === 'ok' || hostLooksDown(src));
+      arm();
+      img.src = viaProxy ? proxied(src) : src;
+    });
   }
   return box;
+}
+
+// ───────────── Chargement différé des images ─────────────
+
+const pendingStarts = new WeakMap<Element, () => void>();
+let observer: IntersectionObserver | null | undefined;
+
+function lazyStart(img: HTMLImageElement, start: () => void): void {
+  if (observer === undefined) {
+    observer =
+      typeof IntersectionObserver !== 'undefined'
+        ? new IntersectionObserver(
+            (entries) => {
+              for (const e of entries) {
+                if (!e.isIntersecting) continue;
+                observer!.unobserve(e.target);
+                const fn = pendingStarts.get(e.target);
+                pendingStarts.delete(e.target);
+                if (fn) fn();
+              }
+            },
+            { rootMargin: '400px 600px' },
+          )
+        : null; // très vieux moteur : chargement immédiat
+  }
+  if (!observer) return start();
+  pendingStarts.set(img, start);
+  observer.observe(img);
 }
 
 const SORTED_PARENTS = /(^| )(rail-track|poster-grid|channel-grid)( |$)/;
@@ -268,7 +306,8 @@ export function rescuableArt(
     );
   };
   const box: HTMLElement = art(image, title, cls, () => rescue(box));
-  if (!hasGoodImage(image)) rescue(box);
+  // Image absente ou sans espoir : secours tout de suite (sinon `art` appelle rescue en cas d'échec).
+  if (!image || !worthTrying(image, proxied(image) !== image)) rescue(box);
   return box;
 }
 

@@ -34,6 +34,35 @@ export function hostLooksDown(url: string): boolean {
   return (hostFails[hostOf(url)] || 0) >= HOST_LIMIT;
 }
 
+/**
+ * Certains hébergeurs refusent les navigateurs mais servent VLC : en développement,
+ * le proxy s'identifie comme VLC. On apprend, hôte par hôte, si ce détour fonctionne.
+ * 'ok' : utiliser le proxy directement ; 'no' : inutile d'insister.
+ */
+const proxyState: Record<string, 'ok' | 'no'> = {};
+const proxyFails: Record<string, number> = {};
+
+export function hostProxyState(url: string): 'ok' | 'no' | undefined {
+  return proxyState[hostOf(url)];
+}
+
+export function markHostProxy(url: string, ok: boolean): void {
+  const host = hostOf(url);
+  if (!host) return;
+  if (ok) {
+    proxyState[host] = 'ok';
+    return;
+  }
+  proxyFails[host] = (proxyFails[host] || 0) + 1;
+  if (proxyFails[host] >= 2) proxyState[host] = 'no';
+}
+
+/** Vrai si l'image mérite encore un essai (lien inconnu, ou hôte en panne mais proxy à tester). */
+export function worthTrying(url: string, canProxy: boolean): boolean {
+  if (!isBad(url)) return true;
+  return canProxy && hostProxyState(url) !== 'no' && !(bad[url] && Date.now() - bad[url] < EXPIRY);
+}
+
 function isBad(url: string): boolean {
   const at = bad[url];
   if (at && Date.now() - (at > 1 ? at : 0) < EXPIRY) return true;
@@ -67,6 +96,8 @@ export function hasGoodImage(url?: string | null): boolean {
 export function clearBadImages(): void {
   bad = {};
   for (const k in hostFails) delete hostFails[k];
+  for (const k in proxyState) delete proxyState[k];
+  for (const k in proxyFails) delete proxyFails[k];
   try {
     localStorage.removeItem(KEY);
   } catch {
