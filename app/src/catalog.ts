@@ -1,4 +1,5 @@
 import type { AccountInfo, Channel, Details, Episode, Playlist, Program, Show } from './types';
+import { VersionIndex } from './versions';
 import { hashId, parseEpgUrl, parseM3U } from './m3u';
 import { fetchText } from './http';
 import * as xt from './xtream';
@@ -67,6 +68,8 @@ export class Catalog {
   account?: AccountInfo;
   epg: EpgStore;
   private index = new Map<string, Channel | Show>();
+  private movieVersions = new VersionIndex<Channel>(() => this.movies);
+  private showVersions = new VersionIndex<Show>(() => this.shows);
 
   private constructor(
     readonly playlist: Playlist,
@@ -128,6 +131,11 @@ export class Catalog {
 
   get(id: string): Channel | Show | undefined {
     return this.index.get(id);
+  }
+
+  /** Autres versions (langues) du même film ou de la même série, l'élément lui-même en tête. */
+  versions(item: Channel | Show): (Channel | Show)[] {
+    return 'kind' in item ? this.movieVersions.of(item) : this.showVersions.of(item);
   }
 
   /** Catégories dans l'ordre d'apparition. */

@@ -357,8 +357,8 @@ class AppCore {
     });
   }
 
-  play(p: Playable, o: { queue?: Playable[]; index?: number; resume?: boolean } = {}): void {
-    const params = { item: p, queue: o.queue || [p], index: o.index || 0, resume: o.resume !== false };
+  play(p: Playable, o: { queue?: Playable[]; index?: number; resume?: boolean; at?: number } = {}): void {
+    const params = { item: p, queue: o.queue || [p], index: o.index || 0, resume: o.resume !== false, at: o.at };
     if (this.current === 'player') this.replace('player', params);
     else this.push('player', params);
   }

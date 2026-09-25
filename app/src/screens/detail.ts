@@ -1,4 +1,5 @@
 import type { Screen } from '../app';
+import { versionLabels } from '../versions';
 import { app, refOf } from '../app';
 import type { Channel, Details, Episode, Playable, Show } from '../types';
 import { h, clear } from '../ui/dom';
@@ -64,6 +65,7 @@ export function detail(params: { id: string }): Screen {
   const meta = h('div', { class: 'meta' });
   const plot = h('p', { class: 'detail-plot' });
   const actions = h('div', { class: 'detail-actions' });
+  const versionsRow = h('div', { class: 'detail-versions hidden' });
   const extra = h('div', { class: 'detail-extra' });
   const info = h(
     'div',
@@ -72,6 +74,7 @@ export function detail(params: { id: string }): Screen {
     meta,
     plot,
     actions,
+    versionsRow,
   );
 
   // Le visuel défile avec le contenu (sinon les épisodes passent par-dessus l'image).
@@ -145,12 +148,37 @@ export function detail(params: { id: string }): Screen {
       }
     }
     actions.appendChild(listBtn());
+    renderVersions();
 
     clear(extra);
     if (isShow) renderSeries(extra, item as Show, d);
     if (d.cast && d.cast.length) extra.appendChild(castRow(d.cast));
     if (d.director) extra.appendChild(h('p', { class: 'muted credits', text: t('director') + ' : ' + d.director }));
     if (el.classList.contains('active') && !el.contains(document.activeElement)) focusFirst(actions);
+  };
+
+  // Versions linguistiques du même titre (autres catégories) : « Langue : Français · العربية · VOSTFR ».
+  const renderVersions = () => {
+    clear(versionsRow);
+    const list = cat.versions(item);
+    if (list.length < 2) return versionsRow.classList.add('hidden');
+    const labels = versionLabels(list);
+    versionsRow.appendChild(h('span', { class: 'detail-versions-label', text: t('language') }));
+    list.forEach((v, i) => {
+      versionsRow.appendChild(
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'chip focusable' + (i === 0 ? ' selected' : ''),
+            title: v.group,
+            on: { click: () => (i === 0 ? undefined : app.replace('detail', { id: v.id })) },
+          },
+          labels[i],
+        ),
+      );
+    });
+    versionsRow.classList.remove('hidden');
   };
 
   const playEpisode = (show: Show, d: Details, ep: Episode) => {

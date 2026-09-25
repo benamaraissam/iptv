@@ -1,12 +1,14 @@
 import type { Screen } from '../app';
 import { app } from '../app';
-import type { Channel, Playable } from '../types';
+import type { Channel, Playable, Show } from '../types';
 import type { Action } from '../platform';
 import { isTV } from '../platform';
 import { h, clear, pagedList } from '../ui/dom';
 import { icon } from '../ui/icons';
 import { art, btn, chooseOption, iconBtn } from '../ui/components';
 import { channelNumber, groupIcon } from './common';
+import { allEpisodes, episodePlayable } from './detail';
+import { versionLabels } from '../versions';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
@@ -19,6 +21,8 @@ interface Params {
   queue: Playable[];
   index: number;
   resume: boolean;
+  /** Position de départ imposée (changement de version en cours de lecture). */
+  at?: number;
 }
 
 /** Liste des chaînes en plein écran : catégorie choisie et visibilité, conservées d'une chaîne à l'autre. */
@@ -290,6 +294,9 @@ export function player(params: Params): Screen {
     if (item.kind === 'episode' && hasQueue) add('episodes', t('episodes'), pickEpisode);
     add('info', t('stats'), toggleStats);
     if (isLive && hasQueue && !side) add('episodes', t('channels'), pickEpisode);
+    // Films / séries : la langue se choisit par version (autre catégorie du même titre).
+    const versions = movieOrShowVersions();
+    if (versions.length > 1) add('audio', t('language'), () => pickVersion(versions));
     const audio = engine.audioTracks();
     if (audio.list.length > 1) {
       add('audio', t('audio'), async () => {
@@ -311,6 +318,37 @@ export function player(params: Params): Screen {
         if (id !== null) engine.setLevel(id);
       });
     }
+  };
+
+  const movieOrShowVersions = (): (Channel | Show)[] => {
+    if (item.kind === 'movie') {
+      const m = cat.get(item.id);
+      return m ? cat.versions(m) : [];
+    }
+    if (item.kind === 'episode' && item.showId) {
+      const sh = cat.get(item.showId);
+      return sh ? cat.versions(sh) : [];
+    }
+    return [];
+  };
+  const pickVersion = async (versions: (Channel | Show)[]) => {
+    const labels = versionLabels(versions);
+    const id = await chooseOption(t('language'), versions.map((_v, i) => ({ id: String(i), label: labels[i] })), '0');
+    if (id === null || id === '0') return;
+    const v = versions[parseInt(id, 10)];
+    const at = video.currentTime;
+    saveProgress();
+    if ('kind' in v) {
+      app.play({ id: v.id, kind: 'movie', title: item.title, subtitle: item.subtitle, url: v.url, poster: item.poster }, { at });
+      return;
+    }
+    // Série : même saison / même épisode dans l'autre version.
+    el.classList.add('buffering');
+    const d = await cat.details(v);
+    const eps = allEpisodes(d);
+    const same = eps.filter((e) => e.season === item.season && e.episode === item.episode)[0] || eps[0];
+    if (!same) return el.classList.remove('buffering');
+    app.play(episodePlayable(v, d, same), { queue: eps.map((e) => episodePlayable(v, d, e)), index: eps.indexOf(same), at });
   };
 
   const pickEpisode = async () => {
@@ -555,7 +593,8 @@ export function player(params: Params): Screen {
     window.clearTimeout(recoverTimer);
     el.classList.add('buffering');
     let startAt = 0;
-    if (params.resume && !isLive) {
+    if (params.at && params.at > 0) startAt = params.at;
+    else if (params.resume && !isLive) {
       const prog = store.getProgress(pid, item.id);
       if (prog && prog.dur > 0 && prog.pos > 30 && prog.pos / prog.dur < 0.95) startAt = prog.pos;
     }
