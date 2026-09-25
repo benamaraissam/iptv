@@ -2,7 +2,7 @@ import type { Screen } from '../app';
 import { app, refOf } from '../app';
 import type { Channel, Details, Episode, Playable, Show } from '../types';
 import { h, clear } from '../ui/dom';
-import { art, btn, chips, emptyState, iconBtn, listRow } from '../ui/components';
+import { art, bgArt, btn, chips, emptyState, iconBtn, listRow } from '../ui/components';
 import { icon } from '../ui/icons';
 import { focusFirst } from '../navigation';
 import * as store from '../storage';
@@ -46,21 +46,21 @@ export function detail(params: { id: string }): Screen {
   // visuel la remplace en fondu une fois téléchargé ; en cas d'échec on garde l'affiche.
   const bg = h('div', { class: 'detail-bg' }, h('div', { class: 'bg-base' }));
   let bgUrl = '';
-  const setBg = (url?: string, instant = false) => {
+  const setBg = (url?: string) => {
     if (!url || url === bgUrl) return;
     preloadImage(url).then((ok) => {
       if (!ok || url === bgUrl) return;
       bgUrl = url;
-      const layer = h('div', { class: 'bg-layer' + (instant ? ' in' : ''), style: 'background-image:url("' + url.replace(/"/g, '%22') + '")' });
+      const layer = bgArt(url, name);
+      layer.classList.add('bg-layer');
       bg.appendChild(layer);
-      if (!instant) window.setTimeout(() => layer.classList.add('in'), 20);
       window.setTimeout(() => {
         while (bg.children.length > 2 && bg.children[1] !== layer) bg.removeChild(bg.children[1]);
       }, 700);
     });
   };
   const posterUrl = isShow ? (item as Show).cover : (item as Channel).logo;
-  setBg(isShow ? (item as Show).backdrop || posterUrl : posterUrl, true);
+  setBg(isShow ? (item as Show).backdrop || posterUrl : posterUrl);
   const meta = h('div', { class: 'meta' });
   const plot = h('p', { class: 'detail-plot' });
   const actions = h('div', { class: 'detail-actions' });

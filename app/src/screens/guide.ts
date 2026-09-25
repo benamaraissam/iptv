@@ -2,7 +2,7 @@ import type { Screen } from '../app';
 import { app } from '../app';
 import type { Channel, Program } from '../types';
 import { h, clear, pagedList } from '../ui/dom';
-import { art, btn, chips, emptyState, openModal, screenHeader } from '../ui/components';
+import { art, btn, chips, emptyState, iconBtn, openModal, screenHeader } from '../ui/components';
 import { formatDay, formatTime, startOfDay, t } from '../i18n';
 import { brandClock, channelNumber } from './common';
 
@@ -40,6 +40,73 @@ export function guide(): Screen {
   const grid = h('div', { class: 'epg-grid' });
   const x = (ms: number) => ((ms - day) / 60000) * pxPerMin;
   const width = 24 * 60 * pxPerMin;
+  const hourPx = 60 * pxPerMin;
+
+  // Navigation horaire : ◀ ▶ (une heure), « Maintenant », glisser à la souris.
+  const scrollBy = (dx: number) => {
+    grid.scrollLeft = Math.max(0, Math.min(width, grid.scrollLeft + dx));
+  };
+  const toolbar = h(
+    'div',
+    { class: 'epg-toolbar' },
+    iconBtn('back', '-1 h', () => scrollBy(-hourPx), 'epg-nav'),
+    btn(t('now'), { variant: 'glass', icon: 'clock', cls: 'epg-now-btn', onClick: () => scrollToNow() }),
+    iconBtn('chevron', '+1 h', () => scrollBy(hourPx), 'epg-nav'),
+  );
+  let dragX = 0;
+  let dragScroll = 0;
+  let dragging = false;
+  let moved = false;
+  grid.addEventListener('mousedown', (e) => {
+    if ((e as MouseEvent).button !== 0) return;
+    dragging = true;
+    moved = false;
+    dragX = (e as MouseEvent).clientX;
+    dragScroll = grid.scrollLeft;
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const dx = (e as MouseEvent).clientX - dragX;
+    if (Math.abs(dx) > 5) moved = true;
+    if (moved) grid.scrollLeft = dragScroll - dx;
+  });
+  window.addEventListener('mouseup', () => (dragging = false));
+  // Un glissé ne doit pas déclencher le clic sur le programme relâché.
+  grid.addEventListener(
+    'click',
+    (e) => {
+      if (moved) {
+        e.stopPropagation();
+        e.preventDefault();
+        moved = false;
+      }
+    },
+    true,
+  );
+
+  // Programme plus large que l'écran : son titre suit le défilement pour rester visible.
+  let alignPending = false;
+  const alignTitles = () => {
+    if (alignPending) return;
+    alignPending = true;
+    window.requestAnimationFrame(() => {
+      alignPending = false;
+      const left = grid.scrollLeft;
+      const right = left + grid.clientWidth;
+      const progs = grid.querySelectorAll<HTMLElement>('.epg-prog');
+      for (let i = 0; i < progs.length; i++) {
+        const p = progs[i];
+        const pl = p.offsetLeft;
+        const pw = p.offsetWidth;
+        if (pl + pw < left || pl > right) continue;
+        const inner = p.firstElementChild as HTMLElement | null;
+        if (!inner) continue;
+        const shift = pl < left ? Math.min(left - pl, Math.max(0, pw - inner.offsetWidth - 12)) : 0;
+        inner.style.transform = shift ? 'translateX(' + shift + 'px)' : '';
+      }
+    });
+  };
+  grid.addEventListener('scroll', alignTitles);
 
   // Les lignes doivent faire toute la largeur défilable, sinon la colonne
   // des chaînes (position: sticky) disparaît avec sa ligne.
@@ -70,6 +137,7 @@ export function guide(): Screen {
     const target = now > day && now < day + 86400000 ? now - SLOT : day + 18 * 3600000;
     grid.scrollLeft = Math.max(0, x(target));
     grid.scrollTop = 0;
+    alignTitles();
   };
 
   const row = (ch: Channel): HTMLElement => {
@@ -109,11 +177,11 @@ export function guide(): Screen {
               style: 'left:' + left + 'px;width:' + w + 'px',
               on: { click: () => programDialog(ch, p, channels) },
             },
-            h('span', { class: 'prog-title', text: p.title }),
-            h('span', { class: 'prog-time', text: formatTime(p.start) + ' – ' + formatTime(p.end) }),
+            h('span', { class: 'prog-inner' }, h('span', { class: 'prog-title', text: p.title }), h('span', { class: 'prog-time', text: formatTime(p.start) + ' – ' + formatTime(p.end) })),
           ),
         );
       }
+      alignTitles();
     });
     return r;
   };
@@ -121,7 +189,7 @@ export function guide(): Screen {
   render();
   let shown = false;
   return {
-    el: h('section', { class: 'guide' }, header, dayChips, grid),
+    el: h('section', { class: 'guide' }, header, h('div', { class: 'epg-bar' }, dayChips, toolbar), grid),
     chrome: 'nav',
     tab: 'guide',
     onShow: () => {

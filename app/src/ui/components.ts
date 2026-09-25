@@ -578,3 +578,34 @@ export function confirmDialog(title: string, okLabel: string): Promise<boolean> 
     const close = openModal(box, () => resolve(ok));
   });
 }
+
+// ───────────── Grand visuel de fond (fiche, affiche de l'accueil) ─────────────
+
+/**
+ * Fond plein écran adapté à l'image reçue :
+ * - vrai visuel large : image en couverture ;
+ * - affiche verticale (le cas des catalogues Xtream) : affiche nette à sa taille,
+ *   sur un halo flou tiré de ses couleurs, au lieu d'être étirée et pixellisée ;
+ * - image large de petite taille : légèrement floutée pour cacher les pixels.
+ */
+export function bgArt(url: string, title: string): HTMLElement {
+  const safe = url.replace(/"/g, '%22');
+  const cover = h('div', { class: 'bg-cover', style: 'background-image:url("' + safe + '")' });
+  const sharp = h('img', { class: 'bg-sharp', alt: '', referrerpolicy: 'no-referrer' });
+  const box = h('div', { class: 'bgart' }, cover, sharp);
+  const probe = new Image();
+  probe.setAttribute('referrerpolicy', 'no-referrer');
+  probe.onload = () => {
+    const w = probe.naturalWidth;
+    const hgt = probe.naturalHeight;
+    if (w && hgt && w / hgt < 1.25) {
+      box.classList.add('portrait');
+      sharp.src = url;
+    } else if (w && w < 900) box.classList.add('lowres');
+    box.classList.add('in');
+  };
+  probe.onerror = () => box.classList.add('in');
+  probe.src = url;
+  box.setAttribute('title', title);
+  return box;
+}

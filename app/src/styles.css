@@ -4241,3 +4241,134 @@ html.kbd .ps-row:focus {
 .layout-wide .epg-channel .num {
   width: auto;
 }
+
+/* Guide TV : barre jours + navigation horaire ; titres qui suivent le défilement */
+.epg-bar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.epg-bar .chips {
+  -webkit-box-flex: 1;
+  flex: 1;
+  min-width: 0;
+}
+.epg-toolbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.2rem 1rem 0.9rem 0;
+}
+.layout-wide .epg-toolbar {
+  padding-right: 2.5rem;
+}
+.epg-toolbar > * {
+  margin-left: 0.4rem;
+}
+.epg-nav {
+  width: 2.3rem;
+  height: 2.3rem;
+}
+.epg-now-btn {
+  height: 2.3rem;
+  padding: 0 0.9rem;
+  font-size: 0.85rem;
+}
+.layout-compact .epg-now-btn span {
+  display: none;
+}
+.layout-compact .epg-now-btn {
+  width: 2.3rem;
+  padding: 0;
+  border-radius: 50%;
+}
+.epg-grid {
+  cursor: -webkit-grab;
+  cursor: grab;
+}
+.epg-grid:active {
+  cursor: -webkit-grabbing;
+  cursor: grabbing;
+}
+.epg-prog {
+  padding: 0;
+}
+.prog-inner {
+  display: inline-block;
+  vertical-align: top;
+  padding: 0.35rem 0.6rem;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-transition: -webkit-transform 0.15s ease-out;
+  transition: transform 0.15s ease-out;
+}
+.epg-prog.past .prog-inner {
+  opacity: 0.8;
+}
+
+/* Grand visuel de fond : couverture, affiche verticale sur halo, ou basse résolution */
+.bgart {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  opacity: 0;
+  -webkit-transition: opacity 0.5s ease-out;
+  transition: opacity 0.5s ease-out;
+}
+.bgart.in {
+  opacity: 1;
+}
+.bgart .bg-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center 22%;
+}
+.bgart.lowres .bg-cover {
+  -webkit-filter: blur(3px) saturate(1.1);
+  filter: blur(3px) saturate(1.1);
+  -webkit-transform: scale(1.04);
+  transform: scale(1.04);
+}
+.bgart.portrait .bg-cover {
+  -webkit-filter: blur(45px) saturate(1.5);
+  filter: blur(45px) saturate(1.5);
+  -webkit-transform: scale(1.2);
+  transform: scale(1.2);
+  opacity: 0.55;
+}
+.bgart .bg-sharp {
+  display: none;
+  position: absolute;
+  right: 6%;
+  top: 7%;
+  height: 86%;
+  width: auto;
+  max-width: 42%;
+  object-fit: contain;
+  border-radius: 0.8rem;
+  box-shadow: 0 2rem 4rem rgba(0, 0, 0, 0.6);
+}
+.bgart.portrait .bg-sharp {
+  display: block;
+}
+.layout-compact .bgart .bg-sharp {
+  right: auto;
+  left: 50%;
+  top: 6%;
+  height: 62%;
+  max-width: 68%;
+  -webkit-transform: translateX(-50%);
+  transform: translateX(-50%);
+}
+/* Le halo remplit aussi la zone masquée par le dégradé, sans bord visible */
+.detail-bg .bgart,
+.billboard .hero-bg .bgart {
+  background: #0a1030;
+}

@@ -3,7 +3,7 @@ import { app, refOf } from '../app';
 import type { Channel, Details, Program, Show } from '../types';
 import { h, clear } from '../ui/dom';
 import { icon, logoMark, type IconName } from '../ui/icons';
-import { art, btn, card, iconBtn, rail, rescuableArt } from '../ui/components';
+import { art, bgArt, btn, card, iconBtn, rail, rescuableArt } from '../ui/components';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
@@ -114,7 +114,7 @@ export function home(): Screen {
     if (liveCh) {
       if (image) heroBg.appendChild(h('div', { class: 'hero-ambient', style: 'background-image:url("' + image.replace(/"/g, '%22') + '")' }));
       heroLogo.appendChild(art(image, title, 'contain'));
-    } else heroBg.appendChild(art(image, title, 'cover'));
+    } else if (image) heroBg.appendChild(bgArt(image, title));
     hero.classList.remove('hero-enter');
     void hero.offsetWidth; // relance l'animation de fondu
     hero.classList.add('hero-enter');
@@ -157,7 +157,7 @@ export function home(): Screen {
         fillMeta(heroMeta, { year: det.year || it.year, genre: det.genre, rating: det.rating || it.rating, duration: det.duration, group: it.group });
         if (det.backdrop && det.backdrop !== image) {
           clear(heroBg);
-          heroBg.appendChild(art(det.backdrop, title, 'cover'));
+          heroBg.appendChild(bgArt(det.backdrop, title));
         }
       };
       if (d) apply(d);
