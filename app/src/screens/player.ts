@@ -96,14 +96,50 @@ export function player(params: Params): Screen {
   );
   el.appendChild(spinner);
   el.appendChild(errorBox);
+
+  // ───── Statistiques de lecture (source lente ou appareil ?) ─────
+  const statsBox = h('div', { class: 'pl-stats hidden' });
+  el.appendChild(statsBox);
+  let statsTimer: number | undefined;
+  const renderStats = () => {
+    const st = engine.stats();
+    clear(statsBox);
+    const row = (label: string, value: string, warn = false) =>
+      statsBox.appendChild(h('div', { class: 'st-row' + (warn ? ' warn' : '') }, h('span', { text: label }), h('b', { text: value })));
+    const sec = (ms?: number) => (ms === undefined ? '—' : (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + ' s');
+    const d = diagnose(st);
+    statsBox.appendChild(h('div', { class: 'st-verdict st-' + d.level }, h('i'), h('span', { text: d.text })));
+    row(t('stStartup'), st.startupMs !== undefined ? sec(st.startupMs) : t('stWaiting') + ' ' + sec(st.waitingMs), (st.startupMs || st.waitingMs) > 5000);
+    if (st.manifestMs !== undefined) row(t('stServer'), sec(st.manifestTtfbMs) + ' / ' + sec(st.manifestMs), (st.manifestMs || 0) > 2000);
+    if (st.fragMs !== undefined && st.fragDurationMs) {
+      row(t('stSegment'), sec(st.fragMs) + ' ' + t('stFor') + ' ' + sec(st.fragDurationMs), st.fragMs > st.fragDurationMs * 0.8);
+    }
+    if (st.bandwidthKbps !== undefined) {
+      row(t('stSpeed'), fmtKbps(st.bandwidthKbps) + (st.levelKbps ? ' (' + t('stNeeded') + ' ' + fmtKbps(st.levelKbps) + ')' : ''), !!st.levelKbps && st.bandwidthKbps < st.levelKbps * 1.2);
+    }
+    row(t('stBuffer'), st.bufferSec.toFixed(1) + ' s', st.bufferSec < 2 && st.startupMs !== undefined);
+    if (st.width) row(t('stResolution'), st.width + '×' + st.height);
+    row(t('stRebuffers'), String(st.rebuffers), st.rebuffers > 2);
+    row(t('stEngine'), st.engine + (st.dropped ? ' · ' + st.dropped + ' ' + t('stDropped') : ''));
+  };
+  const toggleStats = () => {
+    const show = statsBox.classList.contains('hidden');
+    statsBox.classList.toggle('hidden', !show);
+    window.clearInterval(statsTimer);
+    if (show) {
+      renderStats();
+      statsTimer = window.setInterval(renderStats, 1000);
+    }
+  };
   el.appendChild(numEntry);
 
   // ───── Pistes ─────
   const renderExtras = () => {
     clear(extras);
-    const add = (ic: 'episodes' | 'audio' | 'subtitles' | 'quality', label: string, fn: () => void) =>
+    const add = (ic: 'episodes' | 'audio' | 'subtitles' | 'quality' | 'info', label: string, fn: () => void) =>
       extras.appendChild(h('button', { type: 'button', class: 'pl-extra focusable', on: { click: fn } }, icon(ic), h('span', { text: label })));
     if (item.kind === 'episode' && hasQueue) add('episodes', t('episodes'), pickEpisode);
+    add('info', t('stats'), toggleStats);
     if (isLive && hasQueue) add('episodes', t('channels'), pickEpisode);
     const audio = engine.audioTracks();
     if (audio.list.length > 1) {
@@ -304,6 +340,7 @@ export function player(params: Params): Screen {
       el.focus();
     },
     destroy: () => {
+      window.clearInterval(statsTimer);
       saveProgress();
       window.clearInterval(saveTimer);
       window.clearTimeout(hideTimer);
@@ -360,6 +397,9 @@ export function player(params: Params): Screen {
           engine.togglePause();
           showOverlay();
           return true;
+        case 'blue':
+          toggleStats();
+          return true;
         case 'stop':
           app.back();
           return true;
@@ -397,4 +437,22 @@ function exitFullscreen(): void {
   } catch {
     /* ignore */
   }
+}
+
+function fmtKbps(k: number): string {
+  return k >= 1000 ? (k / 1000).toFixed(1) + ' Mb/s' : k + ' kb/s';
+}
+
+/** Verdict lisible : d'où vient la lenteur. */
+function diagnose(st: import('../player').PlaybackStats): { level: 'ok' | 'warn' | 'bad'; text: string } {
+  if (st.startupMs === undefined) {
+    if (st.waitingMs < 4000) return { level: 'warn', text: t('dgLoading') };
+    if (st.manifestMs === undefined && st.engine === 'hls.js') return { level: 'bad', text: t('dgNoAnswer') };
+    return { level: 'bad', text: t('dgSlowStart') };
+  }
+  if ((st.manifestMs || 0) > 2000) return { level: 'bad', text: t('dgSlowServer') };
+  if (st.fragMs && st.fragDurationMs && st.fragMs > st.fragDurationMs * 0.8) return { level: 'bad', text: t('dgSlowDownload') };
+  if (st.levelKbps && st.bandwidthKbps && st.bandwidthKbps < st.levelKbps * 1.2) return { level: 'warn', text: t('dgTight') };
+  if (st.rebuffers > 2) return { level: 'warn', text: t('dgRebuffer') };
+  return { level: 'ok', text: t('dgOk') };
 }

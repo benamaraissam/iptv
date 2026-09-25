@@ -6,6 +6,7 @@ import { art, btn, chips, emptyState, iconBtn, listRow } from '../ui/components'
 import { icon } from '../ui/icons';
 import { focusFirst } from '../navigation';
 import * as store from '../storage';
+import { preloadImage } from '../catalog';
 import { formatRemaining, t } from '../i18n';
 
 export function episodePlayable(show: Show, d: Details, ep: Episode): Playable {
@@ -41,7 +42,25 @@ export function detail(params: { id: string }): Screen {
   const name = item.name;
   const pid = cat.playlist.id;
 
-  const bg = h('div', { class: 'detail-bg' }, art(isShow ? (item as Show).backdrop || (item as Show).cover : (item as Channel).logo, name, 'cover'));
+  // Fond : l'affiche s'affiche tout de suite (déjà en cache du navigateur), puis le grand
+  // visuel la remplace en fondu une fois téléchargé ; en cas d'échec on garde l'affiche.
+  const bg = h('div', { class: 'detail-bg' }, h('div', { class: 'bg-base' }));
+  let bgUrl = '';
+  const setBg = (url?: string, instant = false) => {
+    if (!url || url === bgUrl) return;
+    preloadImage(url).then((ok) => {
+      if (!ok || url === bgUrl) return;
+      bgUrl = url;
+      const layer = h('div', { class: 'bg-layer' + (instant ? ' in' : ''), style: 'background-image:url("' + url.replace(/"/g, '%22') + '")' });
+      bg.appendChild(layer);
+      if (!instant) window.setTimeout(() => layer.classList.add('in'), 20);
+      window.setTimeout(() => {
+        while (bg.children.length > 2 && bg.children[1] !== layer) bg.removeChild(bg.children[1]);
+      }, 700);
+    });
+  };
+  const posterUrl = isShow ? (item as Show).cover : (item as Channel).logo;
+  setBg(isShow ? (item as Show).backdrop || posterUrl : posterUrl, true);
   const meta = h('div', { class: 'meta' });
   const plot = h('p', { class: 'detail-plot' });
   const actions = h('div', { class: 'detail-actions' });
@@ -89,10 +108,7 @@ export function detail(params: { id: string }): Screen {
     if (d.rating) meta.appendChild(h('span', { class: 'rating' }, icon('star'), String(Math.round(d.rating * 10) / 10)));
     if (isShow && d.seasons && d.seasons.length) meta.appendChild(h('span', { class: 'tag', text: d.seasons.length + ' ' + t('seasons') }));
     plot.textContent = d.plot || '';
-    if (d.backdrop) {
-      clear(bg);
-      bg.appendChild(art(d.backdrop, name, 'cover'));
-    }
+    setBg(d.backdrop);
 
     clear(actions);
     if (isShow) {
@@ -186,8 +202,10 @@ export function detail(params: { id: string }): Screen {
     renderEps();
   };
 
-  fill({ title: name, poster: isShow ? (item as Show).cover : (item as Channel).logo });
-  cat.details(item).then(fill, () => undefined);
+  // Fiche déjà préchargée (survol / sélection) : affichage immédiat, sans attente.
+  const known = cat.cachedDetails(item.id);
+  fill(known || { title: name, poster: posterUrl });
+  if (!known) cat.details(item).then(fill, () => undefined);
 
   return { el, chrome: 'nav', tab: isShow ? 'series' : 'movies' };
 }

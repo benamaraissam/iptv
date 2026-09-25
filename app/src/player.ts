@@ -1,10 +1,33 @@
 import type Hls from 'hls.js';
-import { setHealth } from './health';
+import { setHealth, setPlaybackActive } from './health';
 import { proxied } from './http';
 
 export interface Track {
   id: string;
   label: string;
+}
+
+/** Mesures de lecture, pour savoir si une lenteur vient de la source ou de l'appareil. */
+export interface PlaybackStats {
+  /** Temps entre la demande et la première image (ms). */
+  startupMs?: number;
+  /** Temps écoulé depuis la demande (ms), tant que l'image n'est pas arrivée. */
+  waitingMs: number;
+  /** Réponse du serveur pour la playlist HLS : premier octet et total (ms). */
+  manifestTtfbMs?: number;
+  manifestMs?: number;
+  /** Dernier segment vidéo : durée de téléchargement vs durée du segment. */
+  fragMs?: number;
+  fragDurationMs?: number;
+  /** Débit mesuré (kb/s) et débit requis par la qualité en cours. */
+  bandwidthKbps?: number;
+  levelKbps?: number;
+  width: number;
+  height: number;
+  bufferSec: number;
+  dropped?: number;
+  rebuffers: number;
+  engine: 'hls.js' | 'natif';
 }
 
 /**
@@ -25,6 +48,8 @@ export class Engine {
   /** Déjà retenté avec hls.js (URL sans extension .m3u8 qui s'avère être du HLS). */
   private triedHls = false;
   private lastStart = 0;
+  private t0 = 0;
+  private m: Partial<PlaybackStats> & { rebuffers: number } = { rebuffers: 0 };
 
   constructor() {
     const v = document.createElement('video');
@@ -48,6 +73,10 @@ export class Engine {
     // La lecture réelle est la meilleure vérification de l'état d'une chaîne.
     v.addEventListener('playing', () => {
       if (this.currentUrl) setHealth(this.currentUrl, 'ok');
+      if (this.m.startupMs === undefined && this.t0) this.m.startupMs = Date.now() - this.t0;
+    });
+    v.addEventListener('waiting', () => {
+      if (this.m.startupMs !== undefined) this.m.rebuffers++;
     });
     this.video = v;
   }
@@ -62,7 +91,13 @@ export class Engine {
     this.stop();
     this.currentUrl = url;
     this.lastStart = startAt;
-    if (!forceHls) this.triedHls = false;
+    if (!forceHls) {
+      this.triedHls = false;
+      this.t0 = Date.now();
+      this.m = { rebuffers: 0 };
+    }
+    // Les vérifications de chaînes s'arrêtent pendant la lecture (bande passante / connexions).
+    setPlaybackActive(true);
     const v = this.video;
 
     const isHls = forceHls || /\.m3u8?(\?|$)/i.test(url);
@@ -87,6 +122,10 @@ export class Engine {
           backBufferLength: 30,
           startPosition: startAt > 0 ? startAt : -1,
           capLevelToPlayerSize: this.quality === 'auto',
+          // Démarrage rapide : on télécharge le 1er segment en même temps que l'initialisation.
+          startFragPrefetch: true,
+          maxBufferLength: 20,
+          manifestLoadingMaxRetry: 2,
           // Navigateur de développement : manifestes et segments passent par le proxy (CORS).
           xhrSetup: (xhr: XMLHttpRequest, u: string) => {
             const p = proxied(u);
@@ -102,6 +141,22 @@ export class Engine {
           else if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) this.fail('network');
           else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR && mediaRecoveries++ < 2) hls.recoverMediaError();
           else this.fail('other', data.details);
+        });
+        hls.on(HlsCtor.Events.MANIFEST_LOADED, (_e, data: any) => {
+          const st = data && data.stats && data.stats.loading;
+          if (st && st.end) {
+            this.m.manifestMs = Math.round(st.end - st.start);
+            this.m.manifestTtfbMs = Math.round((st.first || st.end) - st.start);
+          }
+        });
+        hls.on(HlsCtor.Events.FRAG_LOADED, (_e, data: any) => {
+          const st = data && data.frag && data.frag.stats;
+          const ld = st && st.loading;
+          if (!ld || !ld.end) return;
+          const ms = Math.max(1, ld.end - ld.start);
+          this.m.fragMs = Math.round(ms);
+          this.m.fragDurationMs = Math.round((data.frag.duration || 0) * 1000);
+          if (st.total) this.m.bandwidthKbps = Math.round((st.total * 8) / ms);
         });
         hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
           this.applyQuality();
@@ -143,7 +198,39 @@ export class Engine {
     return this.currentUrl === url && !this.video.error;
   }
 
+  stats(): PlaybackStats {
+    const v = this.video;
+    let buffer = 0;
+    try {
+      for (let i = 0; i < v.buffered.length; i++) {
+        if (v.buffered.start(i) <= v.currentTime + 0.5 && v.buffered.end(i) >= v.currentTime) buffer = v.buffered.end(i) - v.currentTime;
+      }
+    } catch {
+      /* ignore */
+    }
+    const q = (v as any).getVideoPlaybackQuality ? (v as any).getVideoPlaybackQuality() : null;
+    const hls = this.hls;
+    const level = hls && hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : null;
+    return {
+      startupMs: this.m.startupMs,
+      waitingMs: this.t0 ? Date.now() - this.t0 : 0,
+      manifestTtfbMs: this.m.manifestTtfbMs,
+      manifestMs: this.m.manifestMs,
+      fragMs: this.m.fragMs,
+      fragDurationMs: this.m.fragDurationMs,
+      bandwidthKbps: this.m.bandwidthKbps,
+      levelKbps: level && level.bitrate ? Math.round(level.bitrate / 1000) : undefined,
+      width: v.videoWidth,
+      height: v.videoHeight,
+      bufferSec: Math.round(buffer * 10) / 10,
+      dropped: q ? q.droppedVideoFrames : undefined,
+      rebuffers: this.m.rebuffers,
+      engine: hls ? 'hls.js' : 'natif',
+    };
+  }
+
   stop(): void {
+    setPlaybackActive(false);
     this.currentUrl = null;
     if (this.hls) {
       this.hls.destroy();

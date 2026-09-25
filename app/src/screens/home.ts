@@ -8,7 +8,7 @@ import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
-import { channelNumber, clock } from './common';
+import { channelNumber, clock, imageFirst, prefetchOnIntent } from './common';
 
 type Item = Channel | Show;
 /** Ce que la grande affiche peut présenter. */
@@ -33,9 +33,10 @@ export function home(): Screen {
   const wide = app.wide;
   const open = <T extends { group: string }>(list: T[]) => list.filter((x) => !app.isLocked(x.group));
 
-  const movies = open(cat.movies);
-  const shows = open(cat.shows);
-  const live = open(cat.live);
+  // Partout sur l'accueil, les éléments avec une image passent devant.
+  const movies = imageFirst(open(cat.movies), (m) => m.logo);
+  const shows = imageFirst(open(cat.shows), (x) => x.cover || x.backdrop);
+  const live = imageFirst(open(cat.live), (c) => c.logo);
   const vod: Item[] = (movies as Item[]).concat(shows);
   const cont = store.getContinueWatching(pid);
   const history = store.getHistory(pid);
@@ -43,8 +44,8 @@ export function home(): Screen {
 
   const byAdded = (a: Item, b: Item) => (b.added || 0) - (a.added || 0);
   const byRating = (a: Item, b: Item) => (b.rating || 0) - (a.rating || 0);
-  const recent = vod.filter((x) => x.added).sort(byAdded).slice(0, 20);
-  const top10 = vod.filter((x) => x.rating).sort(byRating).slice(0, 10);
+  const recent = imageFirst(vod.filter((x) => x.added).sort(byAdded), posterOf).slice(0, 20);
+  const top10 = imageFirst(vod.filter((x) => x.rating).sort(byRating), posterOf).slice(0, 10);
 
   // ───── Éléments mis en avant (rotation) ─────
   const featured: HeroItem[] = [];
@@ -145,7 +146,7 @@ export function home(): Screen {
       heroKicker.appendChild(h('span', { class: 'kicker', text: isShow(it) ? t('series') : t('movies') }));
       fillMeta(heroMeta, { year: it.year, genre: isShow(it) ? it.genre : undefined, rating: it.rating, group: it.group });
       if (isShow(it) && it.plot) heroPlot.textContent = it.plot;
-      const d = detailsCache[it.id];
+      const d = detailsCache[it.id] || cat.cachedDetails(it.id);
       const apply = (det: Details) => {
         if (token !== heroToken) return;
         if (det.plot) heroPlot.textContent = det.plot;
@@ -248,9 +249,12 @@ export function home(): Screen {
   };
 
   const posterCard = (x: Item) =>
-    attachHero(
-      card({ title: x.name, sub: x.year || (x.rating ? '★ ' + x.rating.toFixed(1) : x.group), image: posterOf(x), fav: app.inMyList(x.id) }, 'poster', () => app.openItem(x)),
-      { kind: 'item', x },
+    prefetchOnIntent(
+      attachHero(
+        card({ title: x.name, sub: x.year || (x.rating ? '★ ' + x.rating.toFixed(1) : x.group), image: posterOf(x), fav: app.inMyList(x.id) }, 'poster', () => app.openItem(x)),
+        { kind: 'item', x },
+      ),
+      x,
     );
 
   const rows: (HTMLElement | null)[] = [];

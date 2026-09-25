@@ -170,3 +170,27 @@ function pickCategory(groups: string[], selected: string | null, countOf: (g: st
     if (sel) focusEl(sel);
   });
 }
+
+/** Tri stable : les éléments qui ont une image passent devant. */
+export function imageFirst<T>(list: T[], has: (x: T) => unknown): T[] {
+  const withImg: T[] = [];
+  const without: T[] = [];
+  for (const x of list) (has(x) ? withImg : without).push(x);
+  return withImg.concat(without);
+}
+
+/** Précharge la fiche d'un film / d'une série quand on s'y arrête (survol, focus, appui). */
+export function prefetchOnIntent(el: HTMLElement, item: import('../types').Channel | import('../types').Show): HTMLElement {
+  let timer: number | undefined;
+  const go = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => app.catalog && app.catalog.prefetch(item), 220);
+  };
+  const cancel = () => window.clearTimeout(timer);
+  el.addEventListener('mouseenter', go);
+  el.addEventListener('focus', go);
+  el.addEventListener('touchstart', () => app.catalog && app.catalog.prefetch(item), { passive: true } as any);
+  el.addEventListener('mouseleave', cancel);
+  el.addEventListener('blur', cancel);
+  return el;
+}

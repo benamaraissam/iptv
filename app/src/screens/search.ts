@@ -7,7 +7,7 @@ import { card, chips, emptyState, rail, screenHeader } from '../ui/components';
 import * as store from '../storage';
 import { t } from '../i18n';
 import { posterCard } from './vod';
-import { brandClock } from './common';
+import { brandClock, imageFirst } from './common';
 
 const MAX_RESULTS = 60;
 
@@ -45,9 +45,9 @@ export function search(): Screen {
     const q = norm(input.value.trim());
     if (!q) return renderIdle();
     const match = (name: string) => norm(name).indexOf(q) !== -1;
-    const liveRes = scope === 'all' || scope === 'live' ? open(cat.live).filter((c) => match(c.name)).slice(0, MAX_RESULTS) : [];
-    const movieRes = scope === 'all' || scope === 'movies' ? open(cat.movies).filter((c) => match(c.name)).slice(0, MAX_RESULTS) : [];
-    const showRes = scope === 'all' || scope === 'series' ? open(cat.shows).filter((c) => match(c.name)).slice(0, MAX_RESULTS) : [];
+    const liveRes = scope === 'all' || scope === 'live' ? imageFirst(open(cat.live).filter((c) => match(c.name)), (c) => c.logo).slice(0, MAX_RESULTS) : [];
+    const movieRes = scope === 'all' || scope === 'movies' ? imageFirst(open(cat.movies).filter((c) => match(c.name)), (c) => c.logo).slice(0, MAX_RESULTS) : [];
+    const showRes = scope === 'all' || scope === 'series' ? imageFirst(open(cat.shows).filter((c) => match(c.name)), (c) => c.cover).slice(0, MAX_RESULTS) : [];
     if (!liveRes.length && !movieRes.length && !showRes.length) {
       body.appendChild(emptyState('noResults', t('noResults'), t('noResultsText')));
       return;

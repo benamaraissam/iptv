@@ -15,6 +15,12 @@ import http from 'node:http';
 import https from 'node:https';
 
 const UA = 'VLC/3.0.20 LibVLC/3.0.20';
+// Connexions réutilisées (keep-alive) : sans cela, chaque segment vidéo ouvre une
+// nouvelle connexion TCP vers le serveur IPTV, ce qui ralentit nettement la lecture.
+const agents = {
+  http: new http.Agent({ keepAlive: true, maxSockets: 12 }),
+  https: new https.Agent({ keepAlive: true, maxSockets: 12 }),
+};
 const MAX_REDIRECTS = 6;
 
 function isPlaylist(url, contentType) {
@@ -43,15 +49,18 @@ function absolutize(body, base) {
 
 function forward(target, req, res, hops) {
   let mod;
+  let agent;
   try {
-    mod = new URL(target).protocol === 'https:' ? https : http;
+    const secure = new URL(target).protocol === 'https:';
+    mod = secure ? https : http;
+    agent = secure ? agents.https : agents.http;
   } catch {
     res.statusCode = 400;
     return res.end('URL invalide');
   }
   const headers = { 'user-agent': UA, accept: '*/*' };
   if (req.headers.range) headers.range = req.headers.range;
-  const up = mod.get(target, { headers, timeout: 20000 }, (r) => {
+  const up = mod.get(target, { headers, agent, timeout: 20000 }, (r) => {
     const status = r.statusCode || 502;
     if (status >= 300 && status < 400 && r.headers.location && hops < MAX_REDIRECTS) {
       r.resume();

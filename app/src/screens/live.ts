@@ -9,7 +9,7 @@ import { currentProgram, nextProgram } from '../epg';
 import { cancelPending, check, getHealth, onHealth, type Health } from '../health';
 import * as store from '../storage';
 import { formatTime, t } from '../i18n';
-import { brandClock, categoryButton, channelNumber } from './common';
+import { brandClock, categoryButton, channelNumber, imageFirst } from './common';
 
 /**
  * 9 / 13. TV en direct : liste compacte de chaînes + moniteur d'aperçu.
@@ -46,7 +46,8 @@ export function live(params: { group?: string; channelId?: string }): Screen {
       list = list.filter((c) => ids[c.id]);
     } else if (scope === 'online') list = list.filter((c) => getHealth(c.url) === 'ok');
     const q = query.trim().toLowerCase();
-    return q ? list.filter((c) => c.name.toLowerCase().indexOf(q) !== -1) : list;
+    if (q) list = list.filter((c) => c.name.toLowerCase().indexOf(q) !== -1);
+    return imageFirst(list, (c) => c.logo);
   };
 
   // ───── Moniteur ─────
@@ -403,7 +404,9 @@ export function live(params: { group?: string; channelId?: string }): Screen {
         // Ouvert depuis l'accueil / la recherche : la chaîne demandée démarre dans le moniteur.
         const asked = params.channelId ? (cat.get(params.channelId) as Channel | undefined) : undefined;
         if (asked && asked.kind === 'live') startPreview(asked);
-        else if (wide && last) startPreview(last);
+        // Xtream : pas de lecture automatique, pour laisser la vérification des chaînes
+        // se faire d'abord (elle est suspendue pendant la lecture).
+        else if (wide && last && !cat.isXtream) startPreview(last);
       } else if (preview) {
         // Retour du plein écran : on reprend la chaîne regardée en dernier (zapping inclus).
         startPreview(last || preview);

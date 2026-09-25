@@ -40,6 +40,22 @@ export function buildM3UShows(episodes: Channel[]): Show[] {
   return Array.from(shows.values());
 }
 
+const preloaded: Record<string, Promise<boolean>> = {};
+
+/** Télécharge une image à l'avance ; résout true si elle est affichable. */
+export function preloadImage(url?: string): Promise<boolean> {
+  if (!url) return Promise.resolve(false);
+  if (!preloaded[url]) {
+    preloaded[url] = new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img.naturalWidth > 1);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+  }
+  return preloaded[url];
+}
+
 export class Catalog {
   live: Channel[] = [];
   movies: Channel[] = [];
@@ -126,7 +142,35 @@ export class Catalog {
     return this.live.filter((c) => c.archive);
   }
 
-  async details(item: Channel | Show): Promise<Details> {
+  private detailCache = new Map<string, Promise<Details>>();
+  private detailDone = new Map<string, Details>();
+
+  /** Fiche détaillée, mise en cache (un seul appel serveur par titre). */
+  details(item: Channel | Show): Promise<Details> {
+    let p = this.detailCache.get(item.id);
+    if (!p) {
+      p = this.loadDetails(item).then((d) => {
+        this.detailDone.set(item.id, d);
+        return d;
+      });
+      p.catch(() => this.detailCache.delete(item.id));
+      this.detailCache.set(item.id, p);
+    }
+    return p;
+  }
+
+  /** Fiche déjà chargée (synchrone), pour un affichage immédiat. */
+  cachedDetails(id: string): Details | undefined {
+    return this.detailDone.get(id);
+  }
+
+  /** Précharge la fiche et son grand visuel (survol / sélection d'une affiche). */
+  prefetch(item: Channel | Show): void {
+    if ('kind' in item && item.kind === 'live') return;
+    this.details(item).then((d) => preloadImage(d.backdrop), () => undefined);
+  }
+
+  private async loadDetails(item: Channel | Show): Promise<Details> {
     const src = this.playlist.source;
     if ('kind' in item) {
       if (src.type === 'xtream' && item.streamId) {

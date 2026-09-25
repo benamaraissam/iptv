@@ -3927,3 +3927,86 @@ html.kbd .lib-tabs .chip:focus {
   width: auto;
   margin: 0 0 0 0.8rem;
 }
+
+/* Fiche : fond instantané (affiche) puis grand visuel en fondu */
+.detail-bg .bg-base {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at 70% 30%, rgba(90, 80, 255, 0.35), rgba(6, 10, 28, 0) 60%), #0a1030;
+}
+.detail-bg .bg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center 22%;
+  opacity: 0;
+  -webkit-transition: opacity 0.5s ease-out;
+  transition: opacity 0.5s ease-out;
+}
+.detail-bg .bg-layer.in {
+  opacity: 1;
+}
+
+/* Lecteur : statistiques de lecture */
+.pl-stats {
+  position: absolute;
+  z-index: 5;
+  top: 5rem;
+  right: 1.5rem;
+  width: 21rem;
+  max-width: 90%;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  background: rgba(6, 10, 28, 0.88);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+.st-verdict {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.7rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.st-verdict i {
+  flex-shrink: 0;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin: 0.3rem 0.55rem 0 0;
+  border-radius: 50%;
+}
+.st-ok i {
+  background: #2ed47a;
+  box-shadow: 0 0 0.5rem #2ed47a;
+}
+.st-warn i {
+  background: var(--gold);
+  box-shadow: 0 0 0.5rem var(--gold);
+}
+.st-bad i {
+  background: #ff4d6a;
+  box-shadow: 0 0 0.5rem #ff4d6a;
+}
+.st-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.22rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-2);
+}
+.st-row b {
+  margin-left: 0.8rem;
+  color: #fff;
+  font-weight: 600;
+  text-align: right;
+}
+.st-row.warn b {
+  color: #ffb14d;
+}

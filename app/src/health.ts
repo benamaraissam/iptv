@@ -16,6 +16,27 @@ const cache = new Map<string, { s: Health; at: number }>();
 const listeners: ((url: string, s: Health) => void)[] = [];
 const queue: string[] = [];
 let running = 0;
+/** Pause des vérifications pendant la lecture (voir setPlaybackActive). */
+let pauseDuringPlayback = false;
+let playing = false;
+
+/**
+ * Xtream : chaque vérification ouvre une connexion sur le compte (souvent limité à 1 ou 2).
+ * Vérifier pendant qu'on regarde peut ralentir, voire couper, la lecture.
+ */
+export function setPauseDuringPlayback(on: boolean): void {
+  pauseDuringPlayback = on;
+  pump();
+}
+
+export function setPlaybackActive(on: boolean): void {
+  playing = on;
+  if (!on) pump();
+}
+
+export function checksPaused(): boolean {
+  return pauseDuringPlayback && playing;
+}
 
 export function getHealth(url: string): Health {
   const c = cache.get(url);
@@ -58,7 +79,7 @@ export function cancelPending(): void {
 }
 
 function pump(): void {
-  while (running < MAX_PARALLEL && queue.length) {
+  while (!checksPaused() && running < MAX_PARALLEL && queue.length) {
     const url = queue.shift()!;
     running++;
     probe(url)

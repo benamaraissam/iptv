@@ -4,7 +4,7 @@ import type { Channel, Show } from '../types';
 import { h, clear, pagedList } from '../ui/dom';
 import { card, chips, emptyState, iconBtn, screenHeader, type ChipOption } from '../ui/components';
 import { t } from '../i18n';
-import { brandClock, categoryButton } from './common';
+import { brandClock, categoryButton, imageFirst, prefetchOnIntent } from './common';
 
 type Item = Channel | Show;
 type Sort = 'popular' | 'new' | 'az';
@@ -31,7 +31,7 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
     if (sort === 'popular') list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     else if (sort === 'new') list.sort((a, b) => (b.added || 0) - (a.added || 0));
     else list.sort((a, b) => a.name.localeCompare(b.name));
-    return list;
+    return imageFirst(list, (x) => ('kind' in x ? x.logo : x.cover));
   };
 
   const render = () => {
@@ -83,7 +83,7 @@ function vodScreen(kind: 'movies' | 'series', params: { group?: string }): Scree
 export function posterCard(x: Item): HTMLElement {
   const sub = 'year' in x && x.year ? x.year : x.rating ? '★ ' + x.rating.toFixed(1) : x.group;
   const image = 'kind' in x ? x.logo : x.cover;
-  return card({ title: x.name, sub, image, fav: app.inMyList(x.id) }, 'poster', () => app.openItem(x), { 'data-id': x.id });
+  return prefetchOnIntent(card({ title: x.name, sub, image, fav: app.inMyList(x.id) }, 'poster', () => app.openItem(x), { 'data-id': x.id }), x);
 }
 
 export function movies(params: { group?: string }): Screen {
