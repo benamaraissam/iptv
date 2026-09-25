@@ -10,6 +10,7 @@ import { cancelPending, check, getHealth, onHealth, type Health } from '../healt
 import * as store from '../storage';
 import { formatTime, t } from '../i18n';
 import { brandClock, categoryButton, channelNumber, imageFirst } from './common';
+import { mark, timed } from '../diag';
 
 /**
  * 9 / 13. TV en direct : liste compacte de chaînes + moniteur d'aperçu.
@@ -78,6 +79,7 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   engine.video.addEventListener('playing', onPlaying);
 
   const renderInfo = () => {
+    mark('TV : panneau programme');
     clear(infoBox);
     window.clearTimeout(infoTimer);
     const ch = preview;
@@ -133,6 +135,7 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   };
 
   const startPreview = (ch: Channel, focusRow = false) => {
+    mark('TV : aperçu de « ' + ch.name + ' »');
     preview = ch;
     screenBox.classList.add('has-preview');
     placeholder.classList.add('hidden');
@@ -249,6 +252,7 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   const renderSummary = () => {
     window.clearTimeout(summaryTimer);
     summaryTimer = window.setTimeout(() => {
+      mark('TV : résumé état des chaînes');
       let ok = 0;
       let down = 0;
       let checking = 0;
@@ -283,10 +287,11 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   const checkBtn = btn(wide ? t('checkChannels') : null, { variant: wide ? 'glass' : 'icon', icon: 'wifi', title: t('checkChannels'), onClick: checkAll, cls: 'check-btn' });
 
   const renderList = () => {
+    mark('TV : liste des chaînes (' + scope + (group ? ', ' + group : '') + ')');
     clear(list);
     listScroll.scrollTop = 0;
     cancelPending();
-    items = current();
+    items = timed('TV : filtrage / tri des chaînes', current);
     // Toute la catégorie est vérifiée (pas seulement les lignes affichées),
     // pour que le compteur et les pastilles soient prêts avant de faire défiler.
     for (let i = 0; i < items.length && i < AUTO_CHECK_MAX; i++) check(items[i].url);
@@ -302,7 +307,7 @@ export function live(params: { group?: string; channelId?: string }): Screen {
       );
       return;
     }
-    pager = pagedList(listScroll, list, items, row, 40);
+    pager = timed('TV : rendu des 40 premières lignes', () => pagedList(listScroll, list, items, row, 40));
   };
 
   // ───── Filtres : bouton « Catégorie » + sélecteur, et Tout / Favoris / En ligne ─────

@@ -1,6 +1,7 @@
 import type Hls from 'hls.js';
 import { setHealth, setPlaybackActive } from './health';
 import { proxied } from './http';
+import { mark } from './diag';
 
 export interface Track {
   id: string;
@@ -109,6 +110,7 @@ export class Engine {
     v.addEventListener('loadedmetadata', () => this.onTracks());
     // La lecture réelle est la meilleure vérification de l'état d'une chaîne.
     v.addEventListener('playing', () => {
+      mark('lecteur : image affichée');
       if (this.currentUrl) setHealth(this.currentUrl, 'ok');
       if (this.m.startupMs === undefined && this.t0) this.m.startupMs = Date.now() - this.t0;
     });
@@ -125,6 +127,7 @@ export class Engine {
 
   async load(url: string, startAt = 0, forceHls = false): Promise<void> {
     const token = ++this.loadToken;
+    mark('lecteur : chargement ' + url.replace(/^[a-z]+:\/\/([^/]+).*$/i, '$1'));
     this.stop();
     this.currentUrl = url;
     this.lastStart = startAt;
@@ -204,6 +207,7 @@ export class Engine {
           if (st.total) this.m.bandwidthKbps = Math.round((st.total * 8) / ms);
         });
         hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
+          mark('lecteur : manifeste HLS reçu');
           this.applyQuality();
           this.onTracks();
           this.play();

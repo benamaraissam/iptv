@@ -1,4 +1,5 @@
 import type { Channel, ItemRef, Playable, Playlist, Show } from './types';
+import { mark, timed } from './diag';
 import { Catalog } from './catalog';
 import { describeNetworkError } from './http';
 import { setPauseDuringPlayback } from './health';
@@ -190,7 +191,7 @@ class AppCore {
       cur.screen.el.classList.remove('active');
       if (cur.screen.onHide) cur.screen.onHide();
     }
-    const screen = screens[name](params || {});
+    const screen = timed('écran « ' + name + ' » : construction', () => screens[name](params || {}));
     screen.el.classList.add('screen');
     this.stage.appendChild(screen.el);
     this.stack.push({ name, params: params || {}, screen, focus: null });
@@ -231,6 +232,7 @@ class AppCore {
   }
 
   private destroy(entry: StackEntry): void {
+    mark('écran « ' + entry.name + ' » : destruction');
     if (entry.screen.onHide) entry.screen.onHide();
     if (entry.screen.destroy) entry.screen.destroy();
     if (entry.screen.el.parentNode) entry.screen.el.parentNode.removeChild(entry.screen.el);

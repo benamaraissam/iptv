@@ -1,4 +1,5 @@
 import type { Channel, Program } from './types';
+import { mark } from './diag';
 import { fetchText } from './http';
 
 /** « 20240426140000 +0200 » → timestamp ms. */
@@ -108,6 +109,7 @@ export class EpgStore {
     const p = this.pending.get(key);
     if (p) return p;
     const job = this.load(ch, full)
+      .then((list) => (mark('EPG : réponse « ' + ch.name + ' » (' + list.length + ' programmes)'), list))
       .catch(() => [] as Program[])
       .then((list) => {
         this.cache.set(key, { at: Date.now(), list });

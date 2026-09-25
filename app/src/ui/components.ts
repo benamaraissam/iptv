@@ -1,4 +1,5 @@
 import { h, detach, clear } from './dom';
+import { mark } from '../diag';
 import { hasGoodImage, hostLooksDown, hostProxyState, markBadImage, markHostProxy, worthTrying } from '../imgcache';
 import { proxied } from '../http';
 import { icon, type IconName } from './icons';
@@ -159,6 +160,7 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
     };
     const img = h('img', {
       alt: '',
+      decoding: 'async',
       referrerpolicy: 'no-referrer',
       on: {
         // Image vide de 1 × 1 pixel (fréquent dans les playlists) = pas d'image.
@@ -171,6 +173,7 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
           }
           done = true;
           window.clearTimeout(timer);
+          mark('image ' + img.naturalWidth + '×' + img.naturalHeight + ' ' + src.replace(/^[a-z]+:\/\/([^/]+).*$/i, '$1'));
           if (viaProxy) markHostProxy(src, true);
           box.classList.remove('loading');
           box.classList.add('loaded');

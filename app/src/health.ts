@@ -1,6 +1,7 @@
 import { CapacitorHttp } from '@capacitor/core';
 import { isNative, platform } from './platform';
 import { proxied } from './http';
+import { mark } from './diag';
 
 /**
  * État des flux : vérifié par une petite requête (manifeste HLS ou en-têtes),
@@ -86,6 +87,7 @@ function pump(): void {
   while (!checksPaused() && running < MAX_PARALLEL && queue.length) {
     const url = queue.shift()!;
     running++;
+    mark('état chaîne : sonde ' + url.replace(/^[a-z]+:\/\/([^/]+).*$/i, '$1'));
     probe(url)
       .then(
         (s) => setHealth(url, s),
