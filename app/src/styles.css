@@ -4405,17 +4405,14 @@ html.kbd .pl-cat:focus {
   background: linear-gradient(90deg, rgba(42, 120, 255, 0.55), rgba(110, 92, 255, 0.35));
   color: #fff;
 }
-.pl-side-main {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-}
 .pl-side-search {
   position: relative;
   flex-shrink: 0;
-  margin: 0 0.6rem 0.5rem;
+  margin: 0 1rem 0.7rem;
+}
+/* Pendant une recherche, les catégories s'effacent : les résultats prennent toute la largeur */
+.pl-side.searching .pl-cats {
+  display: none;
 }
 .pl-side-search .search-ic {
   left: 0.8rem;

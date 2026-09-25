@@ -103,14 +103,10 @@ export function player(params: Params): Screen {
     const inner = h('div');
     scroller.appendChild(inner);
     let sideQuery = '';
+    // Une recherche porte sur toutes les chaînes, quelle que soit la catégorie choisie.
     const listOf = (g: string | null | 'fav'): Channel[] => {
-      let list = g === 'fav' ? allLive.filter((c) => app.inMyList(c.id)) : g ? allLive.filter((c) => c.group === g) : allLive;
-      if (sideQuery) {
-        const ok: Record<string, true> = {};
-        for (const c of matchesQuery(allLive, sideQuery)) ok[c.id] = true;
-        list = list.filter((c) => ok[c.id]);
-      }
-      return list;
+      if (sideQuery) return matchesQuery(allLive, sideQuery);
+      return g === 'fav' ? allLive.filter((c) => app.inMyList(c.id)) : g ? allLive.filter((c) => c.group === g) : allLive;
     };
     const row = (ch: Channel) => {
       const prog = h('div', { class: 'ps-prog', text: ch.group });
@@ -150,6 +146,7 @@ export function player(params: Params): Screen {
       window.clearTimeout(searchTimer);
       searchTimer = window.setTimeout(() => {
         sideQuery = (searchInput as HTMLInputElement).value.trim();
+        aside.classList.toggle('searching', !!sideQuery);
         renderList();
       }, 200);
     });
@@ -218,7 +215,8 @@ export function player(params: Params): Screen {
         count,
         iconBtn('close', t('hideChannels'), () => setSide(false), 'pl-side-close'),
       ),
-      h('div', { class: 'pl-side-body' }, cats, h('div', { class: 'pl-side-main' }, searchBox, scroller)),
+      searchBox,
+      h('div', { class: 'pl-side-body' }, cats, scroller),
     );
     // En entrant dans la liste (télécommande), on arrive sur la chaîne en cours.
     scroller.addEventListener('focusin', (ev) => {

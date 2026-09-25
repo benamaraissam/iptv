@@ -5,7 +5,7 @@ import { h, clear } from '../ui/dom';
 import { btn, chips, emptyState, listRow, screenHeader } from '../ui/components';
 import * as store from '../storage';
 import { formatDay, formatRemaining, formatTime, t } from '../i18n';
-import { brandClock, continueEntries } from './common';
+import { brandClock, continueEntries, historyEntries } from './common';
 import { vodBrowser } from './vod';
 
 type Tab = 'movies' | 'series' | 'list' | 'continue' | 'history';
@@ -98,7 +98,7 @@ export function library(params: { tab?: Tab }): Screen {
         );
       }
     } else {
-      const items = store.getHistory(pid);
+      const items = historyEntries(pid);
       if (!items.length) return body.appendChild(emptyState('clock', t('emptyHistory'), t('emptyHistoryText')));
       for (const e of items) {
         list.appendChild(

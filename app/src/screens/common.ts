@@ -257,8 +257,26 @@ export function resolvePoster(x: import('../types').Channel | import('../types')
  * (pas l'image de l'épisode) ; le titre reste celui de la série, le sous-titre l'épisode.
  */
 export function continueEntries(pid: string): store.HistoryEntry[] {
+  return withShowPosters(store.getContinueWatching(pid));
+}
+
+/** Historique complet, une seule entrée par série (le dernier épisode vu), affiche de la série. */
+export function historyEntries(pid: string): store.HistoryEntry[] {
+  const seenShow: Record<string, true> = {};
+  const out: store.HistoryEntry[] = [];
+  for (const e of store.getHistory(pid)) {
+    if (e.kind === 'episode' && e.showId) {
+      if (seenShow[e.showId]) continue;
+      seenShow[e.showId] = true;
+    }
+    out.push(e);
+  }
+  return withShowPosters(out);
+}
+
+function withShowPosters(list: store.HistoryEntry[]): store.HistoryEntry[] {
   const cat = app.catalog!;
-  return store.getContinueWatching(pid).map((e) => {
+  return list.map((e) => {
     if (e.kind !== 'episode' || !e.showId) return e;
     const sh = cat.get(e.showId) as Show | undefined;
     const poster = sh && (sh.backdrop || sh.cover);
