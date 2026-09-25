@@ -223,7 +223,9 @@ export class Catalog {
   }
 
   private pump(): void {
-    const max = lowPower ? 1 : 3;
+    // Les requêtes attendent surtout le serveur : 3 en parallèle même sur une box TV
+    // (les réponses par catégorie sont petites), 4 sur un ordinateur.
+    const max = lowPower ? 3 : 4;
     while (this.running < max && this.catQueue.length) {
       const q = this.catQueue.shift()!;
       this.running++;
@@ -251,7 +253,8 @@ export class Catalog {
     if (!items) {
       mark('catalogue : catégorie « ' + cat.name + ' »');
       items = kind === 'm' ? await xt.loadVodCategory(src, cat) : await xt.loadSeriesCategory(src, cat);
-      await store.setCategoryCache(this.playlist.id, key, items);
+      // Écriture du cache en arrière-plan : elle ne retarde pas la catégorie suivante.
+      void store.setCategoryCache(this.playlist.id, key, items);
     }
     if (kind === 'm') {
       for (const m of items as Channel[]) {
