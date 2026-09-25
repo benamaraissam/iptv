@@ -8,7 +8,7 @@ import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
-import { channelNumber, clock, imageFirst, prefetchOnIntent, resolvePoster } from './common';
+import { channelNumber, clock, continueEntries, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { hasGoodImage } from '../imgcache';
 
 type Item = Channel | Show;
@@ -39,7 +39,7 @@ export function home(): Screen {
   const shows = imageFirst(open(cat.shows), (x) => x.cover || x.backdrop);
   const live = imageFirst(open(cat.live), (c) => c.logo);
   const vod: Item[] = (movies as Item[]).concat(shows);
-  const cont = store.getContinueWatching(pid);
+  const cont = continueEntries(pid);
   const history = store.getHistory(pid);
   const myList = store.getMyList(pid);
 

@@ -4405,9 +4405,41 @@ html.kbd .pl-cat:focus {
   background: linear-gradient(90deg, rgba(42, 120, 255, 0.55), rgba(110, 92, 255, 0.35));
   color: #fff;
 }
+.pl-side-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.pl-side-search {
+  position: relative;
+  flex-shrink: 0;
+  margin: 0 0.6rem 0.5rem;
+}
+.pl-side-search .search-ic {
+  left: 0.8rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: -0.55rem;
+}
+.pl-side-search-input {
+  height: 2.5rem;
+  padding-left: 2.4rem;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-appearance: none;
+}
+.pl-side-empty {
+  padding: 1.5rem 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
 .pl-side-list {
   flex: 1;
   min-width: 0;
+  min-height: 0;
 }
 /* Onglet pour rouvrir la liste (souris / tactile) */
 .pl-side-tab {

@@ -1,4 +1,5 @@
-import type { Channel } from '../types';
+import type { Channel, Show } from '../types';
+import * as store from '../storage';
 import { app } from '../app';
 import { h, clear } from '../ui/dom';
 import { icon, logoMark, type IconName } from '../ui/icons';
@@ -248,5 +249,19 @@ export function resolvePoster(x: import('../types').Channel | import('../types')
     };
     if (posterRunning < 2) run();
     else posterQueue.push(run);
+  });
+}
+
+/**
+ * « Continuer à regarder » : pour un épisode, on montre l'affiche de la série
+ * (pas l'image de l'épisode) ; le titre reste celui de la série, le sous-titre l'épisode.
+ */
+export function continueEntries(pid: string): store.HistoryEntry[] {
+  const cat = app.catalog!;
+  return store.getContinueWatching(pid).map((e) => {
+    if (e.kind !== 'episode' || !e.showId) return e;
+    const sh = cat.get(e.showId) as Show | undefined;
+    const poster = sh && (sh.backdrop || sh.cover);
+    return poster ? { ...e, poster } : e;
   });
 }

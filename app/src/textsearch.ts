@@ -45,25 +45,55 @@ interface Entry {
   compact: string;
 }
 
-const indexes = new WeakMap<object, Entry[]>();
+interface Index {
+  entries: Entry[];
+  /** Nombre d'entrées déjà calculées (l'index se construit par tranches). */
+  done: number;
+}
 
-function indexOf<T extends { name: string }>(list: T[]): Entry[] {
+const indexes = new WeakMap<object, Index>();
+
+function entryOf(name: string): Entry {
+  const tokens = tokenize(name);
+  const text = tokens.join(' ');
+  return { tokens, text, compact: text.replace(/ /g, '') };
+}
+
+function indexState<T extends { name: string }>(list: T[]): Index {
   let idx = indexes.get(list);
-  if (!idx || idx.length !== list.length) {
-    idx = new Array(list.length);
-    for (let i = 0; i < list.length; i++) {
-      const tokens = tokenize(list[i].name);
-      const text = tokens.join(' ');
-      idx[i] = { tokens, text, compact: text.replace(/ /g, '') };
-    }
+  if (!idx || idx.entries.length !== list.length) {
+    idx = { entries: new Array(list.length), done: 0 };
     indexes.set(list, idx);
   }
   return idx;
 }
 
-/** Construit l'index à l'avance (au chargement du catalogue), pour une première recherche instantanée. */
+function fill<T extends { name: string }>(list: T[], idx: Index, upTo: number): void {
+  for (let i = idx.done; i < upTo; i++) idx.entries[i] = entryOf(list[i].name);
+  idx.done = Math.max(idx.done, upTo);
+}
+
+/** Index complet (termine ce qui n'a pas encore été construit en arrière-plan). */
+function indexOf<T extends { name: string }>(list: T[]): Entry[] {
+  const idx = indexState(list);
+  if (idx.done < list.length) fill(list, idx, list.length);
+  return idx.entries;
+}
+
+const CHUNK = 2500;
+
+/**
+ * Construit l'index à l'avance, par petites tranches entre deux images, pour que la
+ * première recherche soit instantanée sans jamais figer l'interface (170 000 titres).
+ */
 export function prepareSearch<T extends { name: string }>(list: T[]): void {
-  indexOf(list);
+  const idx = indexState(list);
+  const step = () => {
+    if (idx.done >= list.length || indexes.get(list) !== idx) return;
+    fill(list, idx, Math.min(list.length, idx.done + CHUNK));
+    if (idx.done < list.length) window.setTimeout(step, 30);
+  };
+  step();
 }
 
 /** Distance d'édition bornée (Damerau-Levenshtein, transpositions comprises) ; retourne max+1 au-delà. */
@@ -92,7 +122,7 @@ export function editDistance(a: string, b: string, max: number): number {
 }
 
 function allowedTypos(word: string): number {
-  return word.length >= 8 ? 2 : word.length >= 4 ? 1 : 0;
+  return word.length >= 8 ? 2 : word.length >= 3 ? 1 : 0;
 }
 
 /**
@@ -132,7 +162,10 @@ function score(e: Entry, q: string[], qCompact: string, qText: string): number {
         // Faute de frappe : on ne calcule la distance que si le début ou la fin coïncide
         // (la quasi-totalité des fautes gardent l'un des deux), ce qui élimine 90 % des mots.
         const max = allowedTypos(w);
-        if (max && Math.abs(tk.length - w.length) <= max && (tk.charCodeAt(0) === w.charCodeAt(0) || tk.charCodeAt(tk.length - 1) === w.charCodeAt(w.length - 1))) {
+        const sameStart = tk.charCodeAt(0) === w.charCodeAt(0);
+        const sameEnd = tk.charCodeAt(tk.length - 1) === w.charCodeAt(w.length - 1);
+        // Mot de 3 lettres : la première lettre doit être juste (« zne » → « zone », pas « one »).
+        if (max && Math.abs(tk.length - w.length) <= max && (w.length >= 4 ? sameStart || sameEnd : sameStart)) {
           const d = editDistance(w, tk, max);
           if (d <= max) v = 60 - d * 20;
         }

@@ -9,6 +9,7 @@ import { art, btn, iconBtn } from '../ui/components';
 import { channelNumber, groupIcon } from './common';
 import { allEpisodes, episodePlayable } from './detail';
 import { versionLabels } from '../versions';
+import { matchesQuery } from '../textsearch';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
@@ -101,8 +102,16 @@ export function player(params: Params): Screen {
     const scroller = h('div', { class: 'pl-side-list scroll' });
     const inner = h('div');
     scroller.appendChild(inner);
-    const listOf = (g: string | null | 'fav'): Channel[] =>
-      g === 'fav' ? allLive.filter((c) => app.inMyList(c.id)) : g ? allLive.filter((c) => c.group === g) : allLive;
+    let sideQuery = '';
+    const listOf = (g: string | null | 'fav'): Channel[] => {
+      let list = g === 'fav' ? allLive.filter((c) => app.inMyList(c.id)) : g ? allLive.filter((c) => c.group === g) : allLive;
+      if (sideQuery) {
+        const ok: Record<string, true> = {};
+        for (const c of matchesQuery(allLive, sideQuery)) ok[c.id] = true;
+        list = list.filter((c) => ok[c.id]);
+      }
+      return list;
+    };
     const row = (ch: Channel) => {
       const prog = h('div', { class: 'ps-prog', text: ch.group });
       if (cat.epg.available) {
@@ -134,10 +143,34 @@ export function player(params: Params): Screen {
       );
     };
     const count = h('span', { class: 'pl-side-count' });
+    // Recherche (tolérante) dans les chaînes de la catégorie affichée.
+    let searchTimer: number | undefined;
+    const searchInput = h('input', { class: 'input pl-side-search-input focusable', type: 'search', placeholder: t('searchChannel'), autocomplete: 'off' });
+    searchInput.addEventListener('input', () => {
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => {
+        sideQuery = (searchInput as HTMLInputElement).value.trim();
+        renderList();
+      }, 200);
+    });
+    searchInput.addEventListener('keydown', (ev) => {
+      ev.stopPropagation();
+      const k = (ev as KeyboardEvent).keyCode;
+      if (k === 13 || k === 27) (searchInput as HTMLInputElement).blur();
+      if (k === 40) {
+        const first = inner.querySelector<HTMLElement>('.ps-row');
+        if (first) focusEl(first);
+      }
+    });
+    const searchBox = h('div', { class: 'pl-side-search' }, icon('search', 'search-ic'), searchInput);
     const renderList = () => {
       clear(inner);
       const list = listOf(sideGroup);
       count.textContent = String(list.length);
+      if (!list.length) {
+        inner.appendChild(h('div', { class: 'pl-side-empty', text: t('noResults') }));
+        return;
+      }
       const pager = pagedList(scroller, inner, list, row, 40);
       const at = list.findIndex((c) => c.id === item.id);
       if (at >= 0) pager.renderUntil(at);
@@ -185,7 +218,7 @@ export function player(params: Params): Screen {
         count,
         iconBtn('close', t('hideChannels'), () => setSide(false), 'pl-side-close'),
       ),
-      h('div', { class: 'pl-side-body' }, cats, scroller),
+      h('div', { class: 'pl-side-body' }, cats, h('div', { class: 'pl-side-main' }, searchBox, scroller)),
     );
     // En entrant dans la liste (télécommande), on arrive sur la chaîne en cours.
     scroller.addEventListener('focusin', (ev) => {

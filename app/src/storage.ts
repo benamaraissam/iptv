@@ -170,11 +170,21 @@ export function getProgress(playlistId: string, id: string): HistoryEntry | null
   return null;
 }
 
-/** Films/épisodes commencés mais pas terminés. */
+/**
+ * Films/épisodes commencés mais pas terminés. Une série n'apparaît qu'une fois,
+ * avec le dernier épisode regardé (l'historique est classé du plus récent au plus ancien).
+ */
 export function getContinueWatching(playlistId: string): HistoryEntry[] {
-  return getHistory(playlistId).filter(
-    (h) => (h.kind === 'movie' || h.kind === 'episode') && h.dur > 0 && h.pos > 30 && h.pos / h.dur < 0.95,
-  );
+  const seenShow: Record<string, true> = {};
+  const out: HistoryEntry[] = [];
+  for (const h of getHistory(playlistId)) {
+    if (h.kind === 'episode' && h.showId) {
+      if (seenShow[h.showId]) continue;
+      seenShow[h.showId] = true;
+    }
+    if ((h.kind === 'movie' || h.kind === 'episode') && h.dur > 0 && h.pos > 30 && h.pos / h.dur < 0.95) out.push(h);
+  }
+  return out;
 }
 
 // ───────────── Recherches récentes ─────────────
