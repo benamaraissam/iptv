@@ -3,12 +3,16 @@
  * ne répond plus. On mémorise ces liens (y compris entre deux sessions) pour que les
  * éléments sans image réellement affichable passent après les autres.
  */
-const KEY = 'sp.badimg';
+// Clé versionnée : une ancienne version marquait à tort des images hors écran comme cassées.
+const KEY = 'sp.badimg.v2';
 const MAX = 4000;
 
-/** Lien → date de l'échec. Un échec expire au bout de quelques jours (le serveur peut revenir). */
+/**
+ * Lien → date de l'échec (négative si l'échec n'a eu lieu qu'en accès direct, sans proxy).
+ * Un échec expire au bout d'un jour : un serveur peut revenir.
+ */
 let bad: Record<string, number> = {};
-const EXPIRY = 3 * 86400000;
+const EXPIRY = 86400000;
 try {
   bad = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
 } catch {
@@ -60,15 +64,19 @@ export function markHostProxy(url: string, ok: boolean): void {
 /** Vrai si l'image mérite encore un essai (lien inconnu, ou hôte en panne mais proxy à tester). */
 export function worthTrying(url: string, canProxy: boolean): boolean {
   if (!isBad(url)) return true;
-  return canProxy && hostProxyState(url) !== 'no' && !(bad[url] && Date.now() - bad[url] < EXPIRY);
+  if (!canProxy || hostProxyState(url) === 'no') return false;
+  // Déjà raté via le proxy récemment : inutile. Raté en direct seulement : le proxy vaut un essai.
+  const v = bad[url];
+  return !(v && v > 0 && Date.now() - v < EXPIRY);
 }
 
-/** Échecs en accès direct seulement : si l'hôte marche ensuite via le proxy, ils ne comptent plus. */
-const directOnly: Record<string, 1> = {};
-
 function isBad(url: string): boolean {
-  const at = bad[url];
-  if (at && Date.now() - (at > 1 ? at : 0) < EXPIRY && !(directOnly[url] && hostProxyState(url) === 'ok')) return true;
+  const v = bad[url];
+  if (v) {
+    const at = Math.abs(v);
+    const directOnly = v < 0;
+    if (Date.now() - at < EXPIRY && !(directOnly && hostProxyState(url) === 'ok')) return true;
+  }
   return hostLooksDown(url) && hostProxyState(url) !== 'ok';
 }
 
@@ -76,10 +84,9 @@ export function markBadImage(url?: string, triedProxy = false): void {
   if (!url) return;
   const host = hostOf(url);
   if (host) hostFails[host] = (hostFails[host] || 0) + 1;
-  if (!triedProxy) directOnly[url] = 1;
-  else delete directOnly[url];
-  if (bad[url] && Date.now() - bad[url] < EXPIRY) return;
-  bad[url] = Date.now();
+  const prev = bad[url];
+  if (prev && Date.now() - Math.abs(prev) < EXPIRY && (prev > 0 || !triedProxy)) return;
+  bad[url] = triedProxy ? Date.now() : -Date.now();
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
     try {
