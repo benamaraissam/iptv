@@ -1,5 +1,6 @@
 import { h, detach, clear } from './dom';
 import { hasGoodImage, markBadImage } from '../imgcache';
+import { proxied } from '../http';
 import { icon, type IconName } from './icons';
 import { focusEl, focusFirst, getNavRoot, setNavRoot } from '../navigation';
 import { t } from '../i18n';
@@ -109,7 +110,7 @@ export function initials(raw: string): string {
 }
 
 /** Visuel : image distante, ou dégradé + initiales si absente / en erreur. */
-export function art(src: string | undefined, name: string, cls = ''): HTMLElement {
+export function art(src: string | undefined, name: string, cls = '', onFail?: () => void): HTMLElement {
   const g = GRADIENTS[hashStr(name) % GRADIENTS.length];
   const box = h('div', {
     class: 'art ' + cls,
@@ -119,17 +120,28 @@ export function art(src: string | undefined, name: string, cls = ''): HTMLElemen
   box.appendChild(fallback);
   // Lien déjà connu comme cassé : on n'essaie même pas (pas de clignotement).
   if (src && hasGoodImage(src)) {
+    let retried = false;
     const fail = () => {
+      // Un échec isolé (serveur d'images saturé, coupure) ne suffit pas : on réessaie une fois,
+      // via le proxy en développement (pas de blocage « hotlink » ni de CORS).
+      if (!retried) {
+        retried = true;
+        window.setTimeout(() => (img.src = proxied(src) !== src ? proxied(src) : src + (src.indexOf('?') === -1 ? '?' : '&') + '_r=1'), 1500);
+        return;
+      }
       detach(img);
       markBadImage(src);
-      sendToBack(box);
+      if (onFail) onFail();
+      else sendToBack(box);
     };
     const img = h('img', {
       alt: '',
       loading: 'lazy',
+      referrerpolicy: 'no-referrer',
       on: {
-        // Certaines playlists renvoient une image vide de 1 × 1 pixel.
-        load: () => (img.naturalWidth > 1 ? box.classList.add('loaded') : fail()),
+        // Image vide de 1 × 1 pixel (fréquent dans les playlists) = pas d'image.
+        // 0 × 0 correspond à un SVG sans taille : c'est une vraie image.
+        load: () => (img.naturalWidth === 1 && img.naturalHeight === 1 ? ((retried = true), fail()) : box.classList.add('loaded')),
         error: fail,
       },
     });
@@ -146,7 +158,7 @@ const SORTED_PARENTS = /(^| )(rail-track|poster-grid|channel-grid)( |$)/;
  * pour que les éléments avec une vraie image restent devant. (Pas pour le Top 10 numéroté,
  * ni pour l'élément qui a le focus.)
  */
-function sendToBack(box: HTMLElement): void {
+export function sendToBack(box: HTMLElement): void {
   let node: HTMLElement | null = box.parentElement;
   while (node && !node.classList.contains('card') && !node.classList.contains('ch-row')) node = node.parentElement;
   if (!node || node.classList.contains('card-top') || node === document.activeElement) return;
@@ -169,6 +181,8 @@ export interface CardData {
   badge?: string;
   fav?: boolean;
   locked?: boolean;
+  /** Si l'image manque ou est cassée : cherche une autre image (ex. fiche détaillée). */
+  resolveImage?: () => Promise<string | undefined>;
 }
 
 export function card(
@@ -177,22 +191,38 @@ export function card(
   onClick: () => void,
   attrs: Record<string, string> = {},
 ): HTMLElement {
+  const artCls = shape === 'channel' ? 'contain' : '';
+  let tried = false;
+  let media: HTMLElement;
+  // Image absente / cassée : on tente une image de secours ; sinon la carte passe en fin de rangée.
+  const rescue = () => {
+    if (tried || !d.resolveImage) return false;
+    tried = true;
+    d.resolveImage().then((url) => {
+      const old = media && media.querySelector('.art');
+      if (url && hasGoodImage(url) && old && old.parentNode) {
+        old.parentNode.replaceChild(art(url, d.title, artCls, () => sendToBack(media)), old);
+      } else if (media) sendToBack(media);
+    });
+    return true;
+  };
   const el = h(
     'button',
     { type: 'button', class: 'card card-' + shape + ' focusable', on: { click: onClick } },
-    h(
+    (media = h(
       'div',
       { class: 'card-media' },
-      art(d.image, d.title, shape === 'channel' ? 'contain' : ''),
+      art(d.image, d.title, artCls, d.resolveImage ? () => void rescue() : undefined),
       d.badge ? h('span', { class: 'badge', text: d.badge }) : null,
       d.fav ? h('span', { class: 'card-fav' }, icon('heart')) : null,
       d.locked ? h('span', { class: 'card-lock' }, icon('lock')) : null,
       d.progress !== undefined ? h('div', { class: 'progress' }, h('i', { style: 'width:' + Math.round(d.progress * 100) + '%' })) : null,
-    ),
+    )),
     h('div', { class: 'card-title', text: d.title }),
     d.sub ? h('div', { class: 'card-sub', text: d.sub }) : null,
   );
   for (const k in attrs) el.setAttribute(k, attrs[k]);
+  if (d.resolveImage && !hasGoodImage(d.image)) rescue();
   return el;
 }
 

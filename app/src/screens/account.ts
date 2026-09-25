@@ -12,6 +12,7 @@ import {
   toggleSwitch,
 } from '../ui/components';
 import * as store from '../storage';
+import { clearBadImages } from '../imgcache';
 import { formatDate, getLang, setLang, t, type TKey } from '../i18n';
 import { brandClock, groupIcon } from './common';
 
@@ -202,6 +203,13 @@ export function settings(): Screen {
             })
           : null,
         app.wide ? settingRow('user', t('profile'), { onClick: () => app.push('profile') }) : null,
+        settingRow('refresh', t('recheckImages'), {
+          onClick: () => {
+            clearBadImages();
+            toast(t('recheckImagesDone'));
+            app.rebuild();
+          },
+        }),
         settingRow('info', t('version'), { value: '1.0.0' }),
       ]),
     );

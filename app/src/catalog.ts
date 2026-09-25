@@ -4,6 +4,7 @@ import { fetchText } from './http';
 import * as xt from './xtream';
 import * as store from './storage';
 import { EpgStore } from './epg';
+import { hasGoodImage, knownPoster } from './imgcache';
 
 interface CacheData {
   v: number;
@@ -48,7 +49,8 @@ export function preloadImage(url?: string): Promise<boolean> {
   if (!preloaded[url]) {
     preloaded[url] = new Promise((resolve) => {
       const img = new Image();
-      img.onload = () => resolve(img.naturalWidth > 1);
+      img.setAttribute('referrerpolicy', 'no-referrer');
+      img.onload = () => resolve(!(img.naturalWidth === 1 && img.naturalHeight === 1));
       img.onerror = () => resolve(false);
       img.src = url;
     });
@@ -75,6 +77,9 @@ export class Catalog {
     this.shows = data.shows;
     this.episodes = data.episodes;
     this.account = data.account;
+    // Affiches retrouvées lors d'une session précédente (lien du catalogue vide ou cassé).
+    for (const m of this.movies) if (!hasGoodImage(m.logo)) m.logo = knownPoster(m.id) || m.logo;
+    for (const sh of this.shows) if (!hasGoodImage(sh.cover)) sh.cover = knownPoster(sh.id) || sh.cover;
     for (const list of [this.live, this.movies, this.shows] as (Channel | Show)[][]) {
       for (const x of list) this.index.set(x.id, x);
     }

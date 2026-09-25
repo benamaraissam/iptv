@@ -8,7 +8,7 @@ import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
-import { channelNumber, clock, imageFirst, prefetchOnIntent } from './common';
+import { channelNumber, clock, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { hasGoodImage } from '../imgcache';
 
 type Item = Channel | Show;
@@ -254,7 +254,11 @@ export function home(): Screen {
   const posterCard = (x: Item) =>
     prefetchOnIntent(
       attachHero(
-        card({ title: x.name, sub: x.year || (x.rating ? '★ ' + x.rating.toFixed(1) : x.group), image: posterOf(x), fav: app.inMyList(x.id) }, 'poster', () => app.openItem(x)),
+        card(
+          { title: x.name, sub: x.year || (x.rating ? '★ ' + x.rating.toFixed(1) : x.group), image: posterOf(x), fav: app.inMyList(x.id), resolveImage: () => resolvePoster(x) },
+          'poster',
+          () => app.openItem(x),
+        ),
         { kind: 'item', x },
       ),
       x,

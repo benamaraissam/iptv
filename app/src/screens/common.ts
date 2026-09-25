@@ -5,7 +5,7 @@ import { icon, logoMark, type IconName } from '../ui/icons';
 import { openModal } from '../ui/components';
 import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
-import { hasGoodImage } from '../imgcache';
+import { hasGoodImage, knownPoster, rememberPoster } from '../imgcache';
 import { formatTime, t } from '../i18n';
 
 let clockTimer: number | undefined;
@@ -197,4 +197,46 @@ export function prefetchOnIntent(el: HTMLElement, item: import('../types').Chann
   el.addEventListener('mouseleave', cancel);
   el.addEventListener('blur', cancel);
   return el;
+}
+
+// ───── Affiches de secours (Xtream) ─────
+const posterQueue: (() => void)[] = [];
+let posterRunning = 0;
+
+/**
+ * Film / série sans image affichable dans le catalogue : la fiche détaillée du serveur
+ * en a souvent une (affiche TMDB). Deux requêtes à la fois, résultat mémorisé.
+ */
+export function resolvePoster(x: import('../types').Channel | import('../types').Show): Promise<string | undefined> {
+  const cat = app.catalog;
+  if (!cat || !cat.isXtream || ('kind' in x && x.kind === 'live')) return Promise.resolve(undefined);
+  const known = knownPoster(x.id);
+  if (known) return Promise.resolve(known);
+  const current = 'kind' in x ? x.logo : x.cover;
+  return new Promise((resolve) => {
+    const run = () => {
+      posterRunning++;
+      cat
+        .details(x)
+        .then(
+          (d) => {
+            const url = [d.poster, d.backdrop].filter((u) => u && u !== current && hasGoodImage(u))[0];
+            if (url) {
+              rememberPoster(x.id, url);
+              if ('kind' in x) x.logo = url;
+              else x.cover = url;
+            }
+            resolve(url);
+          },
+          () => resolve(undefined),
+        )
+        .then(() => {
+          posterRunning--;
+          const next = posterQueue.shift();
+          if (next) next();
+        });
+    };
+    if (posterRunning < 2) run();
+    else posterQueue.push(run);
+  });
 }
