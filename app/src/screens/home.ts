@@ -43,10 +43,10 @@ export function home(): Screen {
   const history = historyEntries(pid);
   const myList = store.getMyList(pid);
 
-  const byAdded = (a: Item, b: Item) => (b.added || 0) - (a.added || 0);
-  const byRating = (a: Item, b: Item) => (b.rating || 0) - (a.rating || 0);
-  const recent = imageFirst(vod.filter((x) => x.added).sort(byAdded), posterOf).slice(0, 20);
-  const top10 = imageFirst(vod.filter((x) => x.rating).sort(byRating), posterOf).slice(0, 10);
+  // Les « meilleurs N » se choisissent en une passe (pas de tri de 170 000 titres) ;
+  // on en prend un peu plus que nécessaire pour que ceux avec image passent devant.
+  const recent = imageFirst(topN(vod, 60, (x) => x.added || 0), posterOf).slice(0, 20);
+  const top10 = imageFirst(topN(vod, 40, (x) => x.rating || 0), posterOf).slice(0, 10);
 
   // ───── Éléments mis en avant (rotation) ─────
   const featured: HeroItem[] = [];
@@ -62,7 +62,7 @@ export function home(): Screen {
   const goodBackdrop = (x: Item) => hasGoodImage(backdropOf(x));
   for (const x of recent.filter(goodBackdrop).slice(0, 4)) feature({ kind: 'item', x });
   for (const x of top10.filter(goodBackdrop).slice(0, 4)) feature({ kind: 'item', x });
-  for (const x of vod.filter(goodBackdrop).slice(0, 4)) feature({ kind: 'item', x });
+  for (const x of firstN(vod, 4, goodBackdrop)) feature({ kind: 'item', x });
   if (featured.length < 3) {
     // Playlist de chaînes : favoris, dernières regardées, puis une chaîne par catégorie.
     const liveIds: Record<string, boolean> = {};
@@ -316,13 +316,19 @@ export function home(): Screen {
   addRow(t('recentlyAdded'), recent.map(posterCard));
 
   // Genres films / séries
-  for (const g of topGroups(movies, 4)) addRow(g, movies.filter((m) => m.group === g).slice(0, 20).map(posterCard), () => app.push('movies', { group: g }));
-  for (const g of topGroups(shows, 3)) addRow(g, shows.filter((s) => s.group === g).slice(0, 20).map(posterCard), () => app.push('series', { group: g }));
+  const movieGroups = topGroups(movies, 4);
+  const byMovieGroup = firstByGroup(movies, movieGroups, 20);
+  for (const g of movieGroups) addRow(g, byMovieGroup[g].map(posterCard), () => app.push('movies', { group: g }));
+  const showGroups = topGroups(shows, 3);
+  const byShowGroup = firstByGroup(shows, showGroups, 20);
+  for (const g of showGroups) addRow(g, byShowGroup[g].map(posterCard), () => app.push('series', { group: g }));
 
   // Chaînes par catégorie
-  for (const g of topGroups(live, 8)) {
-    const chans = live.filter((c) => c.group === g);
-    addRow(g, chans.slice(0, 20).map((c) => channelTile(c, chans, attachHero)), () => app.reset('live', { group: g }), 'rail-live');
+  const liveGroups = topGroups(live, 8);
+  const byLiveGroup = firstByGroup(live, liveGroups, 20);
+  for (const g of liveGroups) {
+    const chans = byLiveGroup[g];
+    addRow(g, chans.map((c) => channelTile(c, chans, attachHero)), () => app.reset('live', { group: g }), 'rail-live');
   }
 
   // Chaînes regardées récemment
@@ -463,6 +469,52 @@ function topGroups<T extends { group: string }>(items: T[], max: number): string
     .sort((a, b) => counts[b] - counts[a])
     .slice(0, max);
   return order.filter((g) => keep.indexOf(g) !== -1);
+}
+
+/** Les n plus grands selon `key`, en une passe (liste de sortie triée, décroissante). */
+function topN<T>(list: T[], n: number, key: (x: T) => number): T[] {
+  const out: T[] = [];
+  const keys: number[] = [];
+  let min = -Infinity;
+  for (const x of list) {
+    const k = key(x);
+    if (!k) continue;
+    if (out.length >= n && k <= min) continue;
+    let i = keys.length;
+    while (i > 0 && keys[i - 1] < k) i--;
+    keys.splice(i, 0, k);
+    out.splice(i, 0, x);
+    if (out.length > n) {
+      out.pop();
+      keys.pop();
+    }
+    if (out.length >= n) min = keys[keys.length - 1];
+  }
+  return out;
+}
+
+/** Les n premiers éléments qui vérifient `ok`, sans parcourir toute la liste. */
+function firstN<T>(list: T[], n: number, ok: (x: T) => boolean): T[] {
+  const out: T[] = [];
+  for (const x of list) {
+    if (ok(x)) out.push(x);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+/** Les n premiers éléments de chaque catégorie demandée, en une seule passe. */
+function firstByGroup<T extends { group: string }>(list: T[], groups: string[], n: number): Record<string, T[]> {
+  const out: Record<string, T[]> = {};
+  for (const g of groups) out[g] = [];
+  let remaining = groups.length;
+  for (const x of list) {
+    const bucket = out[x.group];
+    if (!bucket || bucket.length >= n) continue;
+    bucket.push(x);
+    if (bucket.length === n && --remaining === 0) break;
+  }
+  return out;
 }
 
 /** Chaînes à mettre en avant : favoris, puis regardées récemment, puis une par catégorie. */

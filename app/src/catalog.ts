@@ -1,6 +1,7 @@
 import type { AccountInfo, Channel, Details, Episode, Playlist, Program, Show } from './types';
 import { VersionIndex } from './versions';
 import { prepareSearch } from './textsearch';
+import { mark, timed } from './diag';
 import { hashId, parseEpgUrl, parseM3U } from './m3u';
 import { fetchText } from './http';
 import * as xt from './xtream';
@@ -104,8 +105,10 @@ export class Catalog {
 
   static async load(playlist: Playlist, force = false): Promise<Catalog> {
     if (!force) {
+      mark('catalogue : lecture du cache');
       const cached = await store.getCache<CacheData>(playlist.id);
-      if (cached && cached.v === CACHE_VERSION) return new Catalog(playlist, cached);
+      mark('catalogue : cache lu');
+      if (cached && cached.v === CACHE_VERSION) return timed('catalogue : préparation', () => new Catalog(playlist, cached));
     }
     const data = await Catalog.fetch(playlist);
     await store.setCache(playlist.id, data);

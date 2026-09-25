@@ -29,12 +29,19 @@ let saveTimer: number | undefined;
 const HOST_LIMIT = 4;
 const hostFails: Record<string, number> = {};
 
+let downHosts = 0;
+
 function hostOf(url: string): string {
-  const m = /^[a-z]+:\/\/([^/]+)/i.exec(url);
-  return m ? m[1].toLowerCase() : '';
+  const i = url.indexOf('://');
+  if (i < 0) return '';
+  const j = url.indexOf('/', i + 3);
+  return (j < 0 ? url.slice(i + 3) : url.slice(i + 3, j)).toLowerCase();
 }
 
 export function hostLooksDown(url: string): boolean {
+  // Appelé pour chacun des 170 000 titres au tri « images d'abord » : sortie immédiate
+  // dans le cas courant où aucun hébergeur n'est en panne.
+  if (!downHosts) return false;
   return (hostFails[hostOf(url)] || 0) >= HOST_LIMIT;
 }
 
@@ -83,7 +90,10 @@ function isBad(url: string): boolean {
 export function markBadImage(url?: string, triedProxy = false): void {
   if (!url) return;
   const host = hostOf(url);
-  if (host) hostFails[host] = (hostFails[host] || 0) + 1;
+  if (host) {
+    hostFails[host] = (hostFails[host] || 0) + 1;
+    if (hostFails[host] === HOST_LIMIT) downHosts++;
+  }
   const prev = bad[url];
   if (prev && Date.now() - Math.abs(prev) < EXPIRY && (prev > 0 || !triedProxy)) return;
   bad[url] = triedProxy ? Date.now() : -Date.now();
@@ -107,6 +117,7 @@ export function hasGoodImage(url?: string | null): boolean {
 /** Oublie les images marquées comme cassées (Paramètres › Revérifier les images). */
 export function clearBadImages(): void {
   bad = {};
+  downHosts = 0;
   for (const k in hostFails) delete hostFails[k];
   for (const k in proxyState) delete proxyState[k];
   for (const k in proxyFails) delete proxyFails[k];
