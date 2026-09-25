@@ -113,6 +113,7 @@ const fr = {
   inMyList: 'Dans ma liste',
   left: 'restant',
   history: 'Historique',
+  resumeTab: 'Reprendre',
   clearHistory: 'Effacer l’historique',
   // Lecteur
   audio: 'Audio',
@@ -271,6 +272,7 @@ const en: Dict = {
   inMyList: 'In My List',
   left: 'left',
   history: 'History',
+  resumeTab: 'Continue',
   clearHistory: 'Clear history',
   audio: 'Audio',
   subtitles: 'Subtitles',

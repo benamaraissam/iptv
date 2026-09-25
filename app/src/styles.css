@@ -3874,3 +3874,56 @@ html:not(.tv) .pl-back {
 html:not(.tv) .pl-heading {
   margin-left: 5.2rem;
 }
+
+/* Bibliothèque : onglets soulignés + contenu */
+.lib-tabs {
+  padding-bottom: 0;
+  margin-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.lib-tabs .chip {
+  height: 2.6rem;
+  margin-right: 0.2rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--muted);
+  box-shadow: none;
+}
+.lib-tabs .chip.selected {
+  background: none;
+  color: #fff;
+  box-shadow: inset 0 -0.18rem 0 var(--primary-2);
+}
+html.tv .lib-tabs .chip:focus,
+html.kbd .lib-tabs .chip:focus {
+  color: #fff;
+  background: rgba(47, 134, 255, 0.18);
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+.lib-content {
+  -webkit-box-flex: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.vod-filterbar {
+  margin: 0 1rem 0.8rem;
+}
+.layout-wide .vod-filterbar {
+  flex-wrap: nowrap;
+  margin: 0 2.5rem 1rem;
+  max-width: 56rem;
+}
+.layout-wide .vod-filterbar .cat-btn {
+  flex: 1;
+  width: auto;
+}
+.layout-wide .vod-filterbar .scope-switch {
+  width: auto;
+  margin: 0 0 0 0.8rem;
+}

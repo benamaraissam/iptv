@@ -6,17 +6,36 @@ import { btn, chips, emptyState, listRow, screenHeader } from '../ui/components'
 import * as store from '../storage';
 import { formatDay, formatRemaining, formatTime, t } from '../i18n';
 import { brandClock } from './common';
+import { vodBrowser } from './vod';
 
-type Tab = 'list' | 'continue' | 'history';
+type Tab = 'movies' | 'series' | 'list' | 'continue' | 'history';
 
-/** 21 / 22. Bibliothèque : Ma liste, Continuer à regarder, Historique. */
+/** 21 / 22. Bibliothèque : Films, Séries, Ma liste, Continuer à regarder, Historique. */
 export function library(params: { tab?: Tab }): Screen {
   const cat = app.catalog!;
   const pid = cat.playlist.id;
-  let tab: Tab = params.tab || 'list';
+  const hasMovies = cat.movies.length > 0;
+  const hasSeries = cat.shows.length > 0;
+  let tab: Tab = params.tab || (hasMovies ? 'movies' : hasSeries ? 'series' : 'list');
   let listFilter = 'all';
   const body = h('div', { class: 'scroll' });
   const sub = h('div', { class: 'sub-chips' });
+  // Contenu de l'onglet : soit (filtres + liste), soit le catalogue films / séries.
+  const content = h('div', { class: 'lib-content' });
+  const vodCache: Partial<Record<'movies' | 'series', { toolbar: HTMLElement; body: HTMLElement }>> = {};
+
+  const show = () => {
+    clear(content);
+    if (tab === 'movies' || tab === 'series') {
+      const b = vodCache[tab] || (vodCache[tab] = vodBrowser(tab));
+      content.appendChild(b.toolbar);
+      content.appendChild(b.body);
+      return;
+    }
+    content.appendChild(sub);
+    content.appendChild(body);
+    render();
+  };
 
   const openRef = (r: ItemRef) => {
     const item = cat.get(r.id);
@@ -114,22 +133,34 @@ export function library(params: { tab?: Tab }): Screen {
   };
 
   const tabs = chips(
-    [
-      { id: 'list', label: t('myList') },
-      { id: 'continue', label: t('continueWatching') },
-      { id: 'history', label: t('history') },
-    ],
+    ([] as { id: string; label: string }[])
+      .concat(hasMovies ? [{ id: 'movies', label: t('movies') }] : [])
+      .concat(hasSeries ? [{ id: 'series', label: t('series') }] : [])
+      .concat([
+        { id: 'list', label: t('myList') },
+        { id: 'continue', label: t('resumeTab') },
+        { id: 'history', label: t('history') },
+      ]),
     tab,
     (id) => {
       tab = id as Tab;
-      render();
+      show();
     },
   );
-  tabs.classList.add('segmented');
+  tabs.classList.add('lib-tabs');
 
   const header = app.wide
     ? h('header', { class: 'tv-header' }, h('h1', { class: 'screen-title', text: t('library') }), brandClock())
     : screenHeader(t('library'));
 
-  return { el: h('section', { class: 'library' }, header, tabs, sub, body), chrome: 'nav', tab: 'library', onShow: render };
+  show();
+  return {
+    el: h('section', { class: 'library' }, header, tabs, content),
+    chrome: 'nav',
+    tab: 'library',
+    // Au retour (fiche, lecteur), les listes personnelles sont rafraîchies ; le catalogue garde sa position.
+    onShow: () => {
+      if (tab !== 'movies' && tab !== 'series') render();
+    },
+  };
 }

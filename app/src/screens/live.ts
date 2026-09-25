@@ -2,14 +2,14 @@ import type { Screen } from '../app';
 import { app, channelPlayable, refOf } from '../app';
 import type { Channel, Program } from '../types';
 import { h, clear, pagedList } from '../ui/dom';
-import { art, btn, chips, emptyState, heartBtn, iconBtn, openModal, screenHeader } from '../ui/components';
+import { art, btn, chips, emptyState, heartBtn, iconBtn, screenHeader } from '../ui/components';
 import { icon } from '../ui/icons';
 import { focusEl } from '../navigation';
 import { currentProgram, nextProgram } from '../epg';
 import { cancelPending, check, getHealth, onHealth, type Health } from '../health';
 import * as store from '../storage';
 import { formatTime, t } from '../i18n';
-import { brandClock, channelNumber, groupIcon } from './common';
+import { brandClock, categoryButton, channelNumber } from './common';
 
 /**
  * 9 / 13. TV en direct : liste compacte de chaînes + moniteur d'aperçu.
@@ -307,33 +307,16 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   const countOf = (g: string | null) =>
     g === null ? cat.live.filter((c) => !app.isLocked(c.group)).length : cat.live.filter((c) => c.group === g).length;
 
-  const catLabel = h('span', { class: 'cat-btn-label' });
-  const catCount = h('span', { class: 'cat-btn-count' });
-  const catIcon = h('span', { class: 'cat-btn-icon' });
-  const catBtn = h(
-    'button',
-    { type: 'button', class: 'cat-btn focusable', on: { click: () => void openPicker() } },
-    catIcon,
-    h('span', { class: 'cat-btn-text' }, h('span', { class: 'cat-btn-caption', text: t('category') }), catLabel),
-    catCount,
-    icon('down', 'cat-btn-chevron'),
-  );
-  const renderCatBtn = () => {
-    clear(catIcon);
-    catIcon.appendChild(icon(group === null ? 'grid' : app.isLocked(group) ? 'lock' : groupIcon(group)));
-    catLabel.textContent = group === null ? t('allCategories') : group;
-    catCount.textContent = String(countOf(group));
-  };
-
-  const openPicker = async () => {
-    const choice = await pickCategory(groups, group, countOf);
-    if (choice === undefined) return;
-    if (choice !== null && !(await app.unlock(choice))) return;
-    group = choice;
-    renderCatBtn();
-    renderList();
-    focusEl(catBtn);
-  };
+  const catFilter = categoryButton({
+    groups,
+    selected: group,
+    countOf,
+    onChange: (g) => {
+      group = g;
+      renderList();
+    },
+  });
+  const catBtn = catFilter.el;
 
   const scopeEl = chips(
     [
@@ -349,7 +332,6 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   );
   scopeEl.classList.add('segmented', 'scope-switch');
   const filterBar = h('div', { class: 'live-filterbar' }, catBtn, scopeEl);
-  renderCatBtn();
 
   // ───── Mise en page ─────
   let el: HTMLElement;
@@ -476,56 +458,3 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   };
 }
 
-/**
- * Sélecteur de catégorie : panneau (TV) ou feuille (mobile) avec recherche.
- * Résout la catégorie choisie, null pour « Toutes », undefined si annulé.
- */
-function pickCategory(groups: string[], selected: string | null, countOf: (g: string | null) => number): Promise<string | null | undefined> {
-  return new Promise((resolve) => {
-    let result: string | null | undefined;
-    const list = h('div', { class: 'picker-list scroll' });
-    const input = h('input', { class: 'input picker-search focusable', type: 'search', placeholder: t('searchCategory') });
-    const item = (g: string | null) => {
-      const locked = g !== null && app.isLocked(g);
-      const on = g === selected;
-      return h(
-        'button',
-        {
-          type: 'button',
-          class: 'picker-item focusable' + (on ? ' selected' : ''),
-          'data-autofocus': on || undefined,
-          on: {
-            click: () => {
-              result = g;
-              close();
-            },
-          },
-        },
-        h('span', { class: 'picker-ic' }, icon(g === null ? 'grid' : locked ? 'lock' : groupIcon(g))),
-        h('span', { class: 'picker-name', text: g === null ? t('allCategories') : g }),
-        h('span', { class: 'picker-count', text: String(countOf(g)) }),
-        on ? icon('check', 'picker-check') : null,
-      );
-    };
-    const render = () => {
-      clear(list);
-      const q = input.value.trim().toLowerCase();
-      if (!q) list.appendChild(item(null));
-      const shown = groups.filter((g) => !q || g.toLowerCase().indexOf(q) !== -1);
-      for (const g of shown) list.appendChild(item(g));
-      if (!shown.length) list.appendChild(h('p', { class: 'muted picker-empty', text: t('noResults') }));
-    };
-    input.addEventListener('input', render);
-    render();
-    const panel = h(
-      'div',
-      { class: 'sheet picker' },
-      h('div', { class: 'picker-head' }, h('h3', { class: 'sheet-title', text: t('categories') }), h('span', { class: 'muted picker-total', text: groups.length + ' ' + t('categories').toLowerCase() })),
-      groups.length > 6 ? h('div', { class: 'picker-search-wrap' }, icon('search', 'search-ic'), input) : null,
-      list,
-    );
-    const close = openModal(panel, () => resolve(result), 'modal-sheet modal-picker');
-    const sel = list.querySelector<HTMLElement>('.picker-item.selected') || list.querySelector<HTMLElement>('.picker-item');
-    if (sel) focusEl(sel);
-  });
-}
