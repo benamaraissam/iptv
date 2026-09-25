@@ -25,11 +25,50 @@ function visible(el: HTMLElement): boolean {
   return true;
 }
 
+/**
+ * Candidats à la navigation. Sans conteneur imposé (modale…), on se limite à l'écran
+ * actif et au menu latéral : les écrans empilés en dessous restent dans le DOM et
+ * mesurer leurs centaines d'éléments à chaque appui ralentissait les box TV.
+ */
 export function focusables(scope: HTMLElement = root): HTMLElement[] {
-  const nodes = scope.querySelectorAll<HTMLElement>('.focusable');
   const out: HTMLElement[] = [];
-  for (let i = 0; i < nodes.length; i++) if (visible(nodes[i])) out.push(nodes[i]);
+  const collect = (el: Element | null) => {
+    if (!el) return;
+    const nodes = el.querySelectorAll<HTMLElement>('.focusable');
+    for (let i = 0; i < nodes.length; i++) if (visible(nodes[i])) out.push(nodes[i]);
+  };
+  if (scope === document.body) {
+    const active = document.querySelector('.screen.active');
+    if (active) {
+      collect(document.querySelector('.sidenav'));
+      collect(document.querySelector('.tabbar'));
+      collect(active);
+      return out;
+    }
+  }
+  collect(scope);
   return out;
+}
+
+/** Rangées horizontales : ◀ ▶ vont au voisin dans l'ordre du DOM, sans rien mesurer. */
+const ROW_SELECTOR = '.rail-track, .chips, .pl-cats, .lib-tabs, .scope-switch, .pl-menu-list, .detail-actions, .detail-versions';
+
+function rowNeighbour(current: HTMLElement, dir: Direction): HTMLElement | null | undefined {
+  const row = current.closest<HTMLElement>(ROW_SELECTOR);
+  if (!row) return undefined;
+  const vertical = dir === 'up' || dir === 'down';
+  // Listes verticales (catégories du lecteur, menu) : ▲ ▼ ; rangées : ◀ ▶.
+  const isColumn = row.classList.contains('pl-cats') || row.classList.contains('pl-menu-list');
+  if (vertical !== isColumn) return undefined;
+  const items = row.querySelectorAll<HTMLElement>('.focusable');
+  let idx = -1;
+  for (let i = 0; i < items.length; i++) if (items[i] === current) idx = i;
+  if (idx < 0) return undefined;
+  const step = dir === 'right' || dir === 'down' ? 1 : -1;
+  for (let i = idx + step; i >= 0 && i < items.length; i += step) if (visible(items[i])) return items[i];
+  // Bout de rangée : dans une rangée horizontale on s'arrête là (pas de saut ailleurs) ;
+  // dans une colonne on laisse la navigation géométrique sortir de la liste.
+  return isColumn ? undefined : null;
 }
 
 export function focusEl(el: HTMLElement | null | undefined): boolean {
@@ -72,6 +111,11 @@ export function focusFirst(scope: HTMLElement = root): boolean {
 
 export function move(dir: Direction, scope: HTMLElement = root): boolean {
   const current = document.activeElement as HTMLElement | null;
+  if (current && current.classList.contains('focusable')) {
+    const n = rowNeighbour(current, dir);
+    if (n) return focusEl(n);
+    if (n === null && (dir === 'left' || dir === 'right')) return false;
+  }
   const items = focusables(scope);
   if (!current || items.indexOf(current) === -1) return focusEl(items[0]);
 

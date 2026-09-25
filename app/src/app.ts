@@ -256,10 +256,22 @@ class AppCore {
     this.handleAction(action, e);
   }
 
+  private lastMove = 0;
+
   /** Action d'une touche (clavier, télécommande TV, ou relayée par l'activité Android). */
   private handleAction(action: Action, e: KeyboardEvent): void {
     // Fire TV : la touche Menu tient lieu de touche jaune (liste des chaînes, favoris).
     if (action === 'menu') action = 'yellow';
+    // Touche maintenue : on limite la cadence, sinon les déplacements s'accumulent et
+    // le focus continue de courir après le relâchement (box TV).
+    if (action === 'up' || action === 'down' || action === 'left' || action === 'right') {
+      const now = Date.now();
+      if (e.repeat && now - this.lastMove < (lowPower ? 180 : 70)) {
+        e.preventDefault();
+        return;
+      }
+      this.lastMove = now;
+    }
     if (!isTV) document.documentElement.classList.add('kbd');
     const active = document.activeElement as HTMLElement | null;
     const inInput = !!active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA');

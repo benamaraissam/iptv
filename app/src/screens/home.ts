@@ -256,7 +256,8 @@ export function home(): Screen {
     browsing = true;
     window.clearTimeout(rotateTimer);
     window.clearTimeout(focusTimer);
-    focusTimer = window.setTimeout(() => showHero(hi, true), 280);
+    // Box TV : on attend que le curseur s'arrête avant de changer la grande affiche.
+    focusTimer = window.setTimeout(() => showHero(hi, true), lowPower ? 700 : 280);
   };
   let focusTimer: number | undefined;
 

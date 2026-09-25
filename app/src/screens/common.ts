@@ -8,6 +8,7 @@ import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import { hasGoodImage, knownPoster, rememberPoster } from '../imgcache';
 import { formatTime, t } from '../i18n';
+import { lowPower } from '../platform';
 
 let clockTimer: number | undefined;
 
@@ -189,7 +190,7 @@ export function prefetchOnIntent(el: HTMLElement, item: import('../types').Chann
   let timer: number | undefined;
   const go = () => {
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => app.catalog && app.catalog.prefetch(item), 220);
+    timer = window.setTimeout(() => app.catalog && app.catalog.prefetch(item), lowPower ? 800 : 220);
   };
   const cancel = () => window.clearTimeout(timer);
   el.addEventListener('mouseenter', go);
