@@ -35,6 +35,7 @@ export function detail(params: { id: string }): Screen {
   const cat = app.catalog!;
   const item = cat.get(params.id) as Channel | Show | undefined;
   const el = h('section', { class: 'detail' });
+  let destroyed = false;
   if (!item) {
     el.appendChild(emptyState('noResults', t('noResults'), ''));
     return { el, chrome: 'nav' };
@@ -158,9 +159,18 @@ export function detail(params: { id: string }): Screen {
   };
 
   // Versions linguistiques du même titre (autres catégories) : « Langue : Français · العربية · VOSTFR ».
+  let versionsPending = false;
   const renderVersions = () => {
     clear(versionsRow);
-    const list = cat.versions(item);
+    // Index des versions encore en construction (juste après le chargement) : on affiche ce
+    // qu'on sait, sans bloquer l'écran, et on complète dès qu'il est prêt.
+    if (!cat.versionsReady(item) && !versionsPending) {
+      versionsPending = true;
+      cat.whenVersionsReady(item, () => {
+        if (!destroyed) renderVersions();
+      });
+    }
+    const list = cat.versions(item, cat.versionsReady(item));
     if (list.length < 2) return versionsRow.classList.add('hidden');
     const labels = versionLabels(list);
     versionsRow.appendChild(h('span', { class: 'detail-versions-label', text: t('language') }));
@@ -235,7 +245,14 @@ export function detail(params: { id: string }): Screen {
   fill(known || { title: name, poster: posterUrl });
   if (!known) cat.details(item).then(fill, () => undefined);
 
-  return { el, chrome: 'nav', tab: isShow ? 'series' : 'movies' };
+  return {
+    el,
+    chrome: 'nav',
+    tab: isShow ? 'series' : 'movies',
+    destroy: () => {
+      destroyed = true;
+    },
+  };
 }
 
 function castRow(cast: string[]): HTMLElement {

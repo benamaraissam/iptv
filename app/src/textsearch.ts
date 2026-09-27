@@ -1,4 +1,5 @@
 import { mark } from './diag';
+import { backgroundDelay } from './idle';
 /**
  * Recherche tolérante dans le catalogue (170 000 titres) :
  * - accents, majuscules, ponctuation et étiquettes (« FR - », « 4K », « [VOSTFR] ») ignorés ;
@@ -98,7 +99,7 @@ export function prepareSearch<T extends { name: string }>(list: T[]): void {
     if (idx.done >= list.length || indexes.get(list) !== idx) return;
     mark('index de recherche : tranche ' + idx.done + '–' + Math.min(list.length, idx.done + CHUNK));
     fill(list, idx, Math.min(list.length, idx.done + CHUNK));
-    if (idx.done < list.length) window.setTimeout(step, 30);
+    if (idx.done < list.length) window.setTimeout(step, backgroundDelay(30));
   };
   step();
 }

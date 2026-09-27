@@ -1,4 +1,5 @@
 import type { Channel, Show } from './types';
+import { backgroundDelay } from './idle';
 
 /**
  * Versions linguistiques : chez les fournisseurs IPTV, un même film ou une même série
@@ -132,7 +133,7 @@ export function warmVersions(list: { name: string; group: string; year?: string 
       titleKey(list[i]);
     }
     warmedUpTo.set(list, to);
-    if (to < list.length) window.setTimeout(step, 16);
+    if (to < list.length) window.setTimeout(step, backgroundDelay());
     else warming.delete(list);
   };
   window.setTimeout(step, 0);
@@ -201,7 +202,7 @@ export class VersionIndex<T extends Channel | Show> {
     const step = () => {
       const n = this.items().length;
       this.add(Math.min(n, this.built + WARM_CHUNK));
-      if (this.built < this.items().length) window.setTimeout(step, 16);
+      if (this.built < this.items().length) window.setTimeout(step, backgroundDelay());
       else this.warming = false;
     };
     window.setTimeout(step, 0);
@@ -212,12 +213,27 @@ export class VersionIndex<T extends Channel | Show> {
     return this.map;
   }
 
+  /** Vrai quand tout le catalogue est indexé (sinon `of` devrait attendre `whenReady`). */
+  ready(): boolean {
+    return this.built >= this.items().length;
+  }
+
+  /** Appelle `fn` dès que l'index est complet (tout de suite s'il l'est déjà). */
+  whenReady(fn: () => void): void {
+    if (this.ready()) return fn();
+    this.warm();
+    const poll = () => (this.ready() ? fn() : window.setTimeout(poll, 100));
+    window.setTimeout(poll, 100);
+  }
+
   /** Toutes les versions du même titre (l'élément lui-même inclus, en premier). */
-  of(item: T): T[] {
+  of(item: T, wait = true): T[] {
     const k = titleKey(item);
     if (!k) return [item];
     const [title, year] = splitKey(k);
-    const list = this.build().get(title) || [];
+    // Index encore en construction : on ne bloque pas l'interface pour le finir
+    // (des dizaines de milliers de titres) ; l'appelant réessaie via whenReady.
+    const list = (wait ? this.build() : this.map).get(title) || [];
     // Même titre, et même année quand les deux la connaissent.
     const others = list.filter((x) => {
       if (x === item) return false;

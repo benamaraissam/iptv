@@ -11,6 +11,7 @@ import { askPin, closeTopModal, hasModal } from './ui/components';
 import { focusEl, focusFirst, move, getNavRoot } from './navigation';
 import { exitApp, isTV, keyToAction, lowPower, platform, registerTvKeys, type Action } from './platform';
 import { hasNativePlayer } from './native-player';
+import { noteActivity } from './idle';
 import { detectLang, setLang, t, type TKey } from './i18n';
 import { screens, type RouteName } from './screens';
 
@@ -262,6 +263,7 @@ class AppCore {
 
   /** Action d'une touche (clavier, télécommande TV, ou relayée par l'activité Android). */
   private handleAction(action: Action, e: KeyboardEvent): void {
+    noteActivity();
     // Fire TV : la touche Menu tient lieu de touche jaune (liste des chaînes, favoris).
     if (action === 'menu') action = 'yellow';
     // Touche maintenue : on limite la cadence, sinon les déplacements s'accumulent et

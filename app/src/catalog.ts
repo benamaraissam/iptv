@@ -290,8 +290,18 @@ export class Catalog {
   }
 
   /** Autres versions (langues) du même film ou de la même série, l'élément lui-même en tête. */
-  versions(item: Channel | Show): (Channel | Show)[] {
-    return 'kind' in item ? this.movieVersions.of(item) : this.showVersions.of(item);
+  versions(item: Channel | Show, wait = true): (Channel | Show)[] {
+    return 'kind' in item ? this.movieVersions.of(item, wait) : this.showVersions.of(item, wait);
+  }
+
+  /** Vrai quand l'index des versions de ce type d'élément est complet. */
+  versionsReady(item: Channel | Show): boolean {
+    return 'kind' in item ? this.movieVersions.ready() : this.showVersions.ready();
+  }
+
+  /** Appelle `fn` quand l'index des versions est complet (tout de suite s'il l'est). */
+  whenVersionsReady(item: Channel | Show, fn: () => void): void {
+    ('kind' in item ? this.movieVersions : this.showVersions).whenReady(fn);
   }
 
   /** Catégories dans l'ordre d'apparition. */
