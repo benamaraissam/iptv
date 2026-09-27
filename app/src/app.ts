@@ -10,6 +10,7 @@ import { icon, logoMark, type IconName } from './ui/icons';
 import { askPin, closeTopModal, hasModal } from './ui/components';
 import { focusEl, focusFirst, move, getNavRoot } from './navigation';
 import { exitApp, isTV, keyToAction, lowPower, platform, registerTvKeys, type Action } from './platform';
+import { hasNativePlayer } from './native-player';
 import { detectLang, setLang, t, type TKey } from './i18n';
 import { screens, type RouteName } from './screens';
 
@@ -84,7 +85,8 @@ class AppCore {
     const settings = store.getSettings();
     setLang(settings.lang || detectLang());
     this.engine.quality = settings.quality;
-    document.documentElement.className = 'platform-' + platform + (isTV ? ' tv' : ' touch') + (lowPower ? ' lite' : '');
+    document.documentElement.className =
+      'platform-' + platform + (isTV ? ' tv' : ' touch') + (lowPower ? ' lite' : '') + (hasNativePlayer ? ' native-video' : '');
 
     this.sidenav = h('nav', { class: 'sidenav' });
     this.tabbar = h('nav', { class: 'tabbar' });
