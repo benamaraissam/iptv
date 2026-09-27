@@ -752,7 +752,17 @@ export function player(params: Params): Screen {
     if (isFinite(video.duration)) video.currentTime = ratio * video.duration;
     updateTime();
   };
-  seekbar.addEventListener('click', (e) => seekTo((e as MouseEvent).clientX));
+  seekbar.addEventListener('click', (e) => {
+    // OK de la télécommande / Entrée : le navigateur envoie un « clic » sans position
+    // (detail 0, abscisse 0) — ce n'est pas un clic au début de la barre. La position
+    // choisie avec ◀ ▶ est déjà appliquée : OK valide simplement (reprend si en pause).
+    if ((e as MouseEvent).detail === 0) {
+      if (video.paused) engine.play();
+      showOverlay();
+      return;
+    }
+    seekTo((e as MouseEvent).clientX);
+  });
   seekbar.addEventListener('touchmove', (e) => {
     const tch = (e as TouchEvent).touches[0];
     if (tch) seekTo(tch.clientX);

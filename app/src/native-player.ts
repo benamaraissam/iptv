@@ -206,12 +206,19 @@ export function createNativeMedia(): NativeMedia {
       const live = /\/live\/|\.ts(\?|$)|\.m3u8?(\?|$)/i.test(url) && !/\/movie\/|\/series\//i.test(url);
       reset(url, live);
       el.setAttribute('src', url);
-      fire('loadstart');
-      fire('waiting');
-      updateBounds(true);
+      // Le lecteur natif démarre tout de suite (réseau, décodage) ; la position de la surface
+      // est lue à l'image suivante : la lire ici forçait la première mise en page complète
+      // de l'écran en cours de construction (plusieurs centaines de ms sur box TV).
+      mark('lecteur natif : ouverture');
       NativePlayer.load({ url, startAt, live }).catch((e: any) => {
         st.error = { code: 4, message: 'libVLC : ' + String((e && e.message) || e) };
         fire('error');
+      });
+      fire('loadstart');
+      fire('waiting');
+      requestAnimationFrame(() => {
+        mark('lecteur natif : position de la surface');
+        updateBounds(true);
       });
     },
   };
