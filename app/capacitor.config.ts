@@ -4,6 +4,9 @@ const config: CapacitorConfig = {
   appId: 'com.streampro.app',
   appName: 'StreamPro',
   webDir: 'dist',
+  // Pas de journal de chaque appel natif dans la console (des centaines par minute avec le
+  // lecteur natif) : coûteux sur une box TV.
+  loggingBehavior: 'none',
   server: {
     // Beaucoup de flux IPTV sont servis en HTTP : on autorise le contenu mixte.
     androidScheme: 'http',

@@ -44,6 +44,8 @@ public class NativePlayerPlugin extends Plugin {
   private boolean playing;
   /** Lecture arrêtée par le passage en arrière-plan, et position où la reprendre (ms). */
   private boolean stoppedInBackground;
+  private long lastTimeSent;
+  private int lastBufferStep = -1;
   /** Lien en cours et compteur de déplacements (seul le dernier est vérifié). */
   private String currentUrl;
   private int seekToken;
@@ -99,9 +101,16 @@ public class NativePlayerPlugin extends Plugin {
     web.setBackgroundColor(Color.TRANSPARENT);
     parent.setBackgroundColor(Color.TRANSPARENT);
     getActivity().getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.BLACK));
+    // Surface à la taille de l'écran une fois pour toutes : sa zone (plein écran, aperçu,
+    // place laissée aux contrôles) est ensuite réglée par transformation (setBounds), sans
+    // nouvelle mise en page de la fenêtre ni reconfiguration de la sortie vidéo de libVLC.
     ViewGroup.MarginLayoutParams lp =
-        parent instanceof CoordinatorLayout ? new CoordinatorLayout.LayoutParams(1, 1) : new FrameLayout.LayoutParams(1, 1);
+        parent instanceof CoordinatorLayout
+            ? new CoordinatorLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            : new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
     parent.addView(layout, 0, lp);
+    layout.setPivotX(0);
+    layout.setPivotY(0);
     // SurfaceView (voie standard de VLC sur Android / Fire TV ; la TextureView y échoue :
     // « failed to create video output »). La SurfaceView efface elle-même, à son emplacement,
     // tout ce qui a été dessiné avant elle (fond de fenêtre, fond de la vue parente) : la vidéo
@@ -169,6 +178,17 @@ public class NativePlayerPlugin extends Plugin {
       default:
         return;
     }
+    // Moins de messages vers la page (chacun traverse le pont Capacitor) : la position au
+    // plus 2 fois par seconde, le remplissage du tampon par paliers de 10 %.
+    long now = android.os.SystemClock.uptimeMillis();
+    if ("time".equals(kind)) {
+      if (now - lastTimeSent < 500) return;
+      lastTimeSent = now;
+    } else if ("buffering".equals(kind)) {
+      int step = buffering >= 100f ? 10 : (int) (buffering / 10f);
+      if (step == lastBufferStep) return;
+      lastBufferStep = step;
+    }
     notifyListeners("state", state(kind));
   }
 
@@ -228,6 +248,8 @@ public class NativePlayerPlugin extends Plugin {
    */
   private void startMedia(String url, double startAtSec) {
     player.stop();
+    lastBufferStep = -1;
+    lastTimeSent = 0;
     Media media = new Media(libVLC, android.net.Uri.parse(url));
     media.setHWDecoderEnabled(true, false);
     media.addOption(":http-user-agent=VLC/3.0.20 LibVLC/3.0.20");
@@ -336,11 +358,19 @@ public class NativePlayerPlugin extends Plugin {
               }
               DisplayMetrics dm = getContext().getResources().getDisplayMetrics();
               float d = dm.density;
-              ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) layout.getLayoutParams();
-              lp.width = Math.max(1, Math.round((float) w * d));
-              lp.height = Math.max(1, Math.round((float) h * d));
-              lp.setMargins(Math.round((float) x * d), Math.round((float) y * d), 0, 0);
-              layout.setLayoutParams(lp);
+              View parent = (View) layout.getParent();
+              float pw = parent != null && parent.getWidth() > 0 ? parent.getWidth() : dm.widthPixels;
+              float ph = parent != null && parent.getHeight() > 0 ? parent.getHeight() : dm.heightPixels;
+              float bx = (float) x * d;
+              float by = (float) y * d;
+              float bw = (float) w * d;
+              float bh = (float) h * d;
+              // Échelle uniforme (l'image garde ses proportions), centrée dans la zone.
+              float sc = Math.min(bw / pw, bh / ph);
+              layout.setScaleX(sc);
+              layout.setScaleY(sc);
+              layout.setTranslationX(bx + (bw - pw * sc) / 2f);
+              layout.setTranslationY(by + (bh - ph * sc) / 2f);
               layout.setVisibility(View.VISIBLE);
               call.resolve();
             });
