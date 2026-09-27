@@ -6,6 +6,7 @@ import { h, clear } from '../ui/dom';
 import { art, bgArt, btn, chips, emptyState, iconBtn, listRow } from '../ui/components';
 import { icon } from '../ui/icons';
 import { focusFirst } from '../navigation';
+import { thumb } from '../http';
 import * as store from '../storage';
 import { preloadImage } from '../catalog';
 import { formatRemaining, t } from '../i18n';
@@ -48,7 +49,10 @@ export function detail(params: { id: string }): Screen {
   // visuel la remplace en fondu une fois téléchargé ; en cas d'échec on garde l'affiche.
   const bg = h('div', { class: 'detail-bg' }, h('div', { class: 'bg-base' }));
   let bgUrl = '';
-  const setBg = (url?: string) => {
+  const setBg = (raw?: string, width = 1280) => {
+    // Vignette mise en cache (Android) : celle de l'affiche est déjà là, la carte vient de
+    // l'afficher ; le grand visuel arrive ensuite en fondu.
+    const url = raw ? thumb(raw, width) : raw;
     if (!url || url === bgUrl) return;
     preloadImage(url).then((ok) => {
       if (!ok || url === bgUrl) return;
@@ -62,7 +66,9 @@ export function detail(params: { id: string }): Screen {
     });
   };
   const posterUrl = isShow ? (item as Show).cover : (item as Channel).logo;
-  setBg(isShow ? (item as Show).backdrop || posterUrl : posterUrl);
+  const knownBackdrop = isShow ? (item as Show).backdrop : undefined;
+  if (knownBackdrop) setBg(knownBackdrop);
+  else setBg(posterUrl, 400);
   const meta = h('div', { class: 'meta' });
   const plot = h('p', { class: 'detail-plot' });
   const actions = h('div', { class: 'detail-actions' });
@@ -114,7 +120,9 @@ export function detail(params: { id: string }): Screen {
     plot.textContent = d.plot || '';
     setBg(d.backdrop);
 
-    clear(actions);
+    // Boutons préparés à part : s'ils sont identiques à ceux affichés (infos du serveur qui
+    // arrivent après coup), on garde ceux en place — pas de clignotement, le focus reste.
+    const next = h('div');
     if (isShow && !d.seasons) {
       // Épisodes pas encore reçus : le bouton est là tout de suite. Reprise directe depuis
       // l'historique ; sinon le clic attend la liste des épisodes et lance le premier.
@@ -137,7 +145,7 @@ export function detail(params: { id: string }): Screen {
           );
         },
       });
-      actions.appendChild(b);
+      next.appendChild(b);
     } else if (isShow) {
       const show = item as Show;
       const eps = allEpisodes(d);
@@ -145,7 +153,7 @@ export function detail(params: { id: string }): Screen {
       const resumeEp = last ? eps.filter((e) => e.id === last.id)[0] : undefined;
       const target = resumeEp || eps[0];
       if (target) {
-        actions.appendChild(
+        next.appendChild(
           btn(resumeEp ? t('resume') + ' S' + target.season + ' E' + target.episode : t('play'), {
             variant: 'primary',
             icon: 'play',
@@ -158,7 +166,7 @@ export function detail(params: { id: string }): Screen {
       const movie = item as Channel;
       const prog = store.getProgress(pid, movie.id);
       const resumable = prog && prog.dur > 0 && prog.pos > 30 && prog.pos / prog.dur < 0.95;
-      actions.appendChild(
+      next.appendChild(
         btn(resumable ? t('resume') : t('play'), {
           variant: 'primary',
           icon: 'play',
@@ -171,7 +179,15 @@ export function detail(params: { id: string }): Screen {
         meta.appendChild(h('span', { class: 'tag accent', text: formatRemaining(prog!.dur - prog!.pos) + ' ' + t('left') }));
       }
     }
-    actions.appendChild(listBtn());
+    next.appendChild(listBtn());
+    const sig = Array.prototype.map.call(next.children, (c: HTMLElement) => c.textContent).join('|');
+    if (sig !== actions.getAttribute('data-sig')) {
+      const hadFocus = actions.contains(document.activeElement);
+      clear(actions);
+      while (next.firstChild) actions.appendChild(next.firstChild);
+      actions.setAttribute('data-sig', sig);
+      if (hadFocus) focusFirst(actions);
+    }
     renderVersions();
 
     clear(extra);

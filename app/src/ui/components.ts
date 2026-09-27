@@ -609,14 +609,15 @@ export function confirmDialog(title: string, okLabel: string): Promise<boolean> 
  * - image large de petite taille : légèrement floutée pour cacher les pixels.
  */
 export function bgArt(url: string, title: string): HTMLElement {
-  const safe = url.replace(/"/g, '%22');
+  // Un seul comportement, façon Netflix : l'image nette à ses proportions, centrée,
+  // jamais étirée ; une copie floutée remplit le reste de l'écran.
+  // Sur box TV : version réduite et mise en cache (1280 px suffit pour un fond), pour la
+  // copie floutée comme pour l'image nette — plus aucun téléchargement pleine taille.
+  const src = thumb(url, 1280);
+  const safe = src.replace(/"/g, '%22');
   const cover = h('div', { class: 'bg-cover', style: 'background-image:url("' + safe + '")' });
   const sharp = h('img', { class: 'bg-sharp', alt: '', referrerpolicy: 'no-referrer' });
   const box = h('div', { class: 'bgart' }, cover, sharp);
-  // Un seul comportement, façon Netflix : l'image nette à ses proportions, centrée,
-  // jamais étirée ; une copie floutée remplit le reste de l'écran.
-  // Sur box TV : version réduite (1280 px de large suffit pour un fond flouté / fondu).
-  const src = thumb(url, 1280);
   const probe = new Image();
   probe.setAttribute('referrerpolicy', 'no-referrer');
   probe.onload = () => {

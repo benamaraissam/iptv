@@ -1406,6 +1406,11 @@ html.kbd .epg-prog:focus {
   color: var(--text-2);
   font-size: 0.9rem;
   line-height: 1.5;
+  min-height: 3em;
+}
+/* Ligne des étiquettes (année, genre, durée, note) : hauteur fixe, remplie après coup. */
+.detail-info .meta {
+  min-height: 1.9rem;
 }
 .detail-actions {
   display: flex;
@@ -1525,6 +1530,9 @@ html.kbd .epg-prog:focus {
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* Place réservée aux 4 lignes du résumé : quand il arrive du serveur, les boutons ne
+     bougent pas (plus de « flottement » à l'ouverture de la fiche). */
+  height: 6em;
 }
 .layout-wide .episode-list,
 .layout-wide .detail-extra .chips {
@@ -4335,6 +4343,12 @@ html.kbd .lib-tabs .chip:focus {
 }
 .detail-bg .bg-layer.in {
   opacity: 1;
+}
+/* Mode allégé : les transitions sont coupées, sauf ce fondu d'opacité (peu coûteux),
+   pour que le grand visuel remplace l'affiche sans à-coup. */
+html.lite .detail-bg .bg-layer {
+  -webkit-transition: opacity 0.45s ease-out !important;
+  transition: opacity 0.45s ease-out !important;
 }
 
 /* Lecteur : statistiques de lecture */

@@ -3,7 +3,7 @@ import { VersionIndex, warmVersions } from './versions';
 import { prepareSearch } from './textsearch';
 import { mark, timed } from './diag';
 import { hashId, parseEpgUrl, parseM3U } from './m3u';
-import { fetchText } from './http';
+import { fetchText, thumb } from './http';
 import * as xt from './xtream';
 import * as store from './storage';
 import { EpgStore } from './epg';
@@ -448,7 +448,8 @@ export class Catalog {
   /** Précharge la fiche et son grand visuel (survol / sélection d'une affiche). */
   prefetch(item: Channel | Show): void {
     if ('kind' in item && item.kind === 'live') return;
-    this.details(item).then((d) => preloadImage(d.backdrop), () => undefined);
+    // Même vignette que celle qu'affichera la fiche (voir bgArt) : préchargée, pas en double.
+    this.details(item).then((d) => preloadImage(d.backdrop ? thumb(d.backdrop, 1280) : undefined), () => undefined);
   }
 
   private async loadDetails(item: Channel | Show): Promise<Details> {
