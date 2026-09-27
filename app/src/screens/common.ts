@@ -192,7 +192,7 @@ export function prefetchOnIntent(el: HTMLElement, item: import('../types').Chann
     window.clearTimeout(timer);
     // Assez tôt pour que la fiche soit prête au clic (le serveur met souvent 1 à 3 s),
     // assez tard pour ne pas demander chaque affiche traversée en faisant défiler.
-    timer = window.setTimeout(() => app.catalog && app.catalog.prefetch(item), lowPower ? 350 : 220);
+    timer = window.setTimeout(() => app.catalog && app.catalog.prefetch(item), lowPower ? 600 : 300);
   };
   const cancel = () => window.clearTimeout(timer);
   el.addEventListener('mouseenter', go);
@@ -225,7 +225,7 @@ export function resolvePoster(x: import('../types').Channel | import('../types')
     const run = () => {
       posterRunning++;
       cat
-        .details(x)
+        .details(x, true)
         .then(
           (d) => {
             // On préfère une image hébergée ailleurs que l'image qui vient d'échouer

@@ -8,6 +8,7 @@ import * as xt from './xtream';
 import * as store from './storage';
 import { EpgStore } from './epg';
 import { idbGet, idbSet } from './idb';
+import { apiPaused } from './apiguard';
 import { hasGoodImage, knownPoster } from './imgcache';
 import { isNative, lowPower } from './platform';
 
@@ -408,17 +409,29 @@ export class Catalog {
 
   private detailCache = new Map<string, Promise<Details>>();
   private detailDone = new Map<string, Details>();
+  /** Fiches en cours de chargement lancées par un préchargement (file espacée). */
+  private detailBg = new Set<string>();
 
   /** Fiche détaillée, mise en cache (un seul appel serveur par titre). */
-  details(item: Channel | Show): Promise<Details> {
+  details(item: Channel | Show, background = false): Promise<Details> {
     let p = this.detailCache.get(item.id);
+    // Ouverture demandée par l'utilisateur alors qu'un préchargement attend encore son tour
+    // dans la file espacée : on n'attend pas derrière les autres, requête immédiate.
+    if (p && !background && this.detailBg.has(item.id) && !this.detailDone.has(item.id)) p = undefined;
     if (!p) {
-      p = this.storedDetails(item).then((d) => {
+      if (background) this.detailBg.add(item.id);
+      else this.detailBg.delete(item.id);
+      const job: Promise<Details> = this.storedDetails(item, background).then((d) => {
         this.detailDone.set(item.id, d);
+        this.detailBg.delete(item.id);
         return d;
       });
-      p.catch(() => this.detailCache.delete(item.id));
-      this.detailCache.set(item.id, p);
+      // Échec : on oublie la demande (la suivante réessaie), sauf si une autre l'a remplacée.
+      job.catch(() => {
+        if (this.detailCache.get(item.id) === job) this.detailCache.delete(item.id);
+      });
+      this.detailCache.set(item.id, job);
+      p = job;
     }
     return p;
   }
@@ -433,13 +446,13 @@ export class Catalog {
    * instantanément aux ouvertures suivantes, même après redémarrage. Le serveur Xtream met
    * souvent plusieurs secondes à répondre à get_vod_info / get_series_info.
    */
-  private async storedDetails(item: Channel | Show): Promise<Details> {
+  private async storedDetails(item: Channel | Show, background: boolean): Promise<Details> {
     const key = 'det.' + this.playlist.id + '.' + item.id;
     const saved = await idbGet<{ at: number; d: Details }>(key).catch(() => undefined);
     if (saved && saved.d && Date.now() - saved.at < DETAILS_TTL) return saved.d;
     const t0 = Date.now();
     mark('fiche : requête « ' + item.name + ' »');
-    const d = await this.loadDetails(item);
+    const d = await this.loadDetails(item, background);
     mark('fiche : réponse du serveur en ' + (Date.now() - t0) + ' ms');
     void idbSet(key, { at: Date.now(), d });
     return d;
@@ -449,17 +462,18 @@ export class Catalog {
   prefetch(item: Channel | Show): void {
     if ('kind' in item && item.kind === 'live') return;
     // Même vignette que celle qu'affichera la fiche (voir bgArt) : préchargée, pas en double.
-    this.details(item).then((d) => preloadImage(d.backdrop ? thumb(d.backdrop, 1280) : undefined), () => undefined);
+    if (apiPaused() && !this.detailDone.has(item.id)) return;
+    this.details(item, true).then((d) => preloadImage(d.backdrop ? thumb(d.backdrop, 1280) : undefined), () => undefined);
   }
 
-  private async loadDetails(item: Channel | Show): Promise<Details> {
+  private async loadDetails(item: Channel | Show, background = false): Promise<Details> {
     const src = this.playlist.source;
     if ('kind' in item) {
       // Échec réseau : on ne met PAS en cache un résultat vide (la prochaine demande réessaie).
-      if (src.type === 'xtream' && item.streamId) return xt.getMovieDetails(src, item);
+      if (src.type === 'xtream' && item.streamId) return xt.getMovieDetails(src, item, background);
       return { title: item.name, poster: item.logo, backdrop: item.logo, year: item.year, rating: item.rating };
     }
-    if (src.type === 'xtream' && item.seriesId) return xt.getSeriesDetails(src, item);
+    if (src.type === 'xtream' && item.seriesId) return xt.getSeriesDetails(src, item, background);
     return this.m3uShowDetails(item);
   }
 

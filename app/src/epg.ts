@@ -78,10 +78,13 @@ type Fetcher = (ch: Channel) => Promise<Program[]>;
  * Source unique de programmes TV : EPG court Xtream (à la demande, par chaîne)
  * ou guide XMLTV global pour les playlists M3U.
  */
+const DROPPED = 'abandonnée';
+const QUEUE_MAX = 12;
+
 export class EpgStore {
   private cache = new Map<string, { at: number; list: Program[] }>();
   private pending = new Map<string, Promise<Program[]>>();
-  private queue: (() => void)[] = [];
+  private queue: { go: () => void; drop: () => void }[] = [];
   private running = 0;
   private xmltv: Promise<Map<string, Program[]>> | null = null;
 
@@ -111,8 +114,18 @@ export class EpgStore {
     if (p) return p;
     const job = this.load(ch, full)
       .then((list) => (mark('EPG : réponse « ' + ch.name + ' » (' + list.length + ' programmes)'), list))
-      .catch(() => [] as Program[])
-      .then((list) => {
+      .catch((e) => {
+        // Demande abandonnée (ligne défilée) ou API en pause : pas de mise en cache,
+        // la chaîne sera redemandée quand elle réapparaîtra.
+        const msg = String((e as Error) && (e as Error).message);
+        return msg === DROPPED || /pause/.test(msg) ? null : ([] as Program[]);
+      })
+      .then((res) => {
+        if (res === null) {
+          this.pending.delete(key);
+          return [] as Program[];
+        }
+        const list = res;
         this.cache.set(key, { at: Date.now(), list });
         // Le guide complet sert aussi pour « en cours ».
         if (key !== ch.id && !this.cache.get(ch.id)) this.cache.set(ch.id, { at: Date.now(), list });
@@ -160,17 +173,22 @@ export class EpgStore {
   }
 
   // Limite à 4 requêtes simultanées pour ne pas saturer le serveur.
+  // File courte : en faisant défiler des milliers de chaînes, seules les dernières lignes
+  // demandées (celles à l'écran) sont gardées ; les plus anciennes sont abandonnées.
   private slot(): Promise<void> {
-    if (this.running < (lowPower ? 2 : 6)) {
+    if (this.running < (lowPower ? 2 : 4)) {
       this.running++;
       return Promise.resolve();
     }
-    return new Promise((resolve) => this.queue.push(() => (this.running++, resolve())));
+    return new Promise((resolve, reject) => {
+      this.queue.push({ go: () => (this.running++, resolve()), drop: () => reject(new Error(DROPPED)) });
+      while (this.queue.length > QUEUE_MAX) this.queue.shift()!.drop();
+    });
   }
 
   private release(): void {
     this.running--;
-    const next = this.queue.shift();
-    if (next) next();
+    const next = this.queue.pop();
+    if (next) next.go();
   }
 }

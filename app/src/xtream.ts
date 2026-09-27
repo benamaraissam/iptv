@@ -1,4 +1,5 @@
 import type { AccountInfo, Channel, Details, Episode, Program, Show } from './types';
+import { backgroundTurn, noteApi, statusOf } from './apiguard';
 import { fetchJson } from './http';
 
 export interface XtreamCredentials {
@@ -60,10 +61,18 @@ function streamBase(c: XtreamCredentials, type: string): string {
   );
 }
 
-async function get<T>(url: string): Promise<T> {
+/**
+ * Requête API. `background` : requête de confort (guide, préchargement), espacée et
+ * suspendue quand le serveur sature (voir apiguard.ts).
+ */
+async function get<T>(url: string, background = false): Promise<T> {
+  if (background) await backgroundTurn();
   try {
-    return await fetchJson<T>(url);
+    const r = await fetchJson<T>(url);
+    noteApi(true);
+    return r;
   } catch (e) {
+    noteApi(false, statusOf(e));
     throw new Error('Xtream : ' + (e as Error).message);
   }
 }
@@ -291,8 +300,8 @@ export async function loadXtream(c: XtreamCredentials): Promise<XtreamCatalog> {
   };
 }
 
-export async function getMovieDetails(c: XtreamCredentials, movie: Channel): Promise<Details> {
-  const r = await get<{ info?: Record<string, any> }>(api(c, '&action=get_vod_info&vod_id=' + movie.streamId));
+export async function getMovieDetails(c: XtreamCredentials, movie: Channel, background = false): Promise<Details> {
+  const r = await get<{ info?: Record<string, any> }>(api(c, '&action=get_vod_info&vod_id=' + movie.streamId), background);
   const i = r.info || {};
   return {
     title: str(i.name) || movie.name,
@@ -308,9 +317,10 @@ export async function getMovieDetails(c: XtreamCredentials, movie: Channel): Pro
   };
 }
 
-export async function getSeriesDetails(c: XtreamCredentials, show: Show): Promise<Details> {
+export async function getSeriesDetails(c: XtreamCredentials, show: Show, background = false): Promise<Details> {
   const r = await get<{ info?: Record<string, any>; episodes?: Record<string, any[]> }>(
     api(c, '&action=get_series_info&series_id=' + show.seriesId),
+    background,
   );
   const i = r.info || {};
   const base = streamBase(c, 'series');
@@ -360,13 +370,14 @@ export async function getSeriesDetails(c: XtreamCredentials, show: Show): Promis
 export async function getShortEpg(c: XtreamCredentials, streamId: number, limit = 40): Promise<Program[]> {
   const r = await get<{ epg_listings?: any[] }>(
     api(c, '&action=get_short_epg&stream_id=' + streamId + '&limit=' + limit),
+    true,
   );
   return list<any>(r && r.epg_listings).map(toProgram).filter((p) => p.end > p.start);
 }
 
 /** Programmes passés et à venir, avec l'indicateur de replay. */
 export async function getFullEpg(c: XtreamCredentials, streamId: number): Promise<Program[]> {
-  const r = await get<{ epg_listings?: any[] }>(api(c, '&action=get_simple_data_table&stream_id=' + streamId));
+  const r = await get<{ epg_listings?: any[] }>(api(c, '&action=get_simple_data_table&stream_id=' + streamId), true);
   return list<any>(r && r.epg_listings).map(toProgram).filter((p) => p.end > p.start);
 }
 

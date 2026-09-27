@@ -5,6 +5,7 @@ import '@fontsource/inter/latin-700.css';
 import './styles.css';
 import { app } from './app';
 import { diagReport, installDiag } from './diag';
+import { apiGuardState } from './apiguard';
 
 function start(): void {
   app.start(document.getElementById('app')!);
@@ -16,7 +17,8 @@ function start(): void {
     const head = cat
       ? 'Catalogue : ' + cat.live.length + ' chaînes, ' + cat.movies.length + ' films, ' + cat.shows.length + ' séries — chargement ' + JSON.stringify(cat.loadState) + (cat.failures.length ? '\nÉchecs : ' + cat.failures.join(' ; ') : '')
       : 'Catalogue : aucun';
-    return head + '\n\n' + diagReport();
+    const guard = 'API fournisseur : ' + apiGuardState();
+    return head + '\n' + guard + '\n\n' + diagReport();
   };
   installDiag();
 }
