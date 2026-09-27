@@ -318,6 +318,37 @@ public class NativePlayerPlugin extends Plugin {
             });
   }
 
+  /** Diagnostic : couleur de fond de la vue parente (visible seulement si la WebView est transparente). */
+  @PluginMethod
+  public void setDebugBackground(PluginCall call) {
+    final String color = call.getString("color", "#FF0000");
+    getActivity()
+        .runOnUiThread(
+            () -> {
+              WebView web = getBridge().getWebView();
+              if (web != null && web.getParent() instanceof View) {
+                try {
+                  ((View) web.getParent()).setBackgroundColor(Color.parseColor(color));
+                } catch (Exception e) {
+                  ((View) web.getParent()).setBackgroundColor(Color.TRANSPARENT);
+                }
+              }
+              call.resolve();
+            });
+  }
+
+  /** Diagnostic : fenêtre en format translucide (composition des pixels transparents). */
+  @PluginMethod
+  public void setWindowTranslucent(PluginCall call) {
+    final boolean on = call.getBoolean("on", true);
+    getActivity()
+        .runOnUiThread(
+            () -> {
+              getActivity().getWindow().setFormat(on ? android.graphics.PixelFormat.TRANSLUCENT : android.graphics.PixelFormat.OPAQUE);
+              call.resolve();
+            });
+  }
+
   private static android.view.SurfaceView findSurface(View v) {
     if (v instanceof android.view.SurfaceView) return (android.view.SurfaceView) v;
     if (v instanceof ViewGroup) {
