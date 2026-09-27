@@ -255,11 +255,13 @@ export class Catalog {
     if (src.type !== 'xtream') return;
     let items = await store.getCategoryCache<(Channel | Show)[]>(this.playlist.id, key);
     if (!items) {
-      mark('catalogue : catégorie « ' + cat.name + ' »');
+      mark('catalogue : requête catégorie « ' + cat.name + ' »');
       items = kind === 'm' ? await xt.loadVodCategory(src, cat) : await xt.loadSeriesCategory(src, cat);
+      mark('catalogue : catégorie « ' + cat.name + ' » reçue (' + items.length + ')');
       // Écriture du cache en arrière-plan : elle ne retarde pas la catégorie suivante.
       void store.setCategoryCache(this.playlist.id, key, items);
-    }
+      mark('catalogue : catégorie « ' + cat.name + ' » mise en cache');
+    } else mark('catalogue : catégorie « ' + cat.name + ' » lue du cache (' + items.length + ')');
     if (kind === 'm') {
       for (const m of items as Channel[]) {
         if (!hasGoodImage(m.logo)) m.logo = knownPoster(m.id) || m.logo;
@@ -277,6 +279,7 @@ export class Catalog {
       prepareSearch(this.shows);
       this.warm();
     }
+    mark('catalogue : catégorie « ' + cat.name + ' » intégrée');
   }
 
   /** Langues, clés de titre et index des versions calculés en arrière-plan, par tranches. */

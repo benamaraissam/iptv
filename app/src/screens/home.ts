@@ -5,7 +5,7 @@ import { h, clear } from '../ui/dom';
 import { icon, logoMark, type IconName } from '../ui/icons';
 import { art, bgArt, btn, card, hasModal, iconBtn, rail, rescuableArt } from '../ui/components';
 import { focusEl } from '../navigation';
-import { timed } from '../diag';
+import { mark, timed } from '../diag';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
@@ -53,6 +53,7 @@ export function home(): Screen {
   const N_MOVIE_GENRES = lowPower ? 3 : 4;
   const N_SHOW_GENRES = lowPower ? 2 : 3;
   const N_LIVE_GROUPS = lowPower ? 4 : 8;
+  mark('accueil : données (historique, meilleurs titres)');
   const vod: Item[] = (movies as Item[]).concat(shows);
   const cont = continueEntries(pid);
   const history = historyEntries(pid);
@@ -64,6 +65,7 @@ export function home(): Screen {
   const top10 = imageFirst(topN(vod, 40, (x) => x.rating || 0), posterOf).slice(0, 10);
 
   // ───── Éléments mis en avant (rotation) ─────
+  mark('accueil : éléments mis en avant');
   const featured: HeroItem[] = [];
   const seen: Record<string, boolean> = {};
   const feature = (hi: HeroItem) => {
@@ -282,6 +284,7 @@ export function home(): Screen {
 
   // Les premières rangées sont construites tout de suite ; les suivantes une par une, entre
   // deux images, pour que l'accueil s'affiche et réponde à la télécommande sans attendre.
+  mark('accueil : rangées immédiates');
   const railsEl = h('div', { class: 'rails' });
   const lazy: (() => HTMLElement | null)[] = [];
   let eager = 3;
@@ -392,6 +395,7 @@ export function home(): Screen {
       .map(([ic, label, go]) => h('button', { type: 'button', class: 'quick-chip focusable', on: { click: go } }, icon(ic), h('span', { text: t(label) }))),
   );
 
+  mark('accueil : assemblage');
   const header = wide
     ? h('div', { class: 'home-top' }, clock())
     : h(
@@ -432,6 +436,7 @@ export function home(): Screen {
   if (!wide) scroller.addEventListener('scroll', () => header.classList.toggle('solid', scroller.scrollTop > 40));
 
   if (featured.length) showHero(featured[0], true);
+  mark('accueil : affiche prête');
 
   // Catalogue chargé par catégorie (box TV) : pastille de progression, et l'accueil se
   // reconstruit une fois les premières catégories arrivées, puis à la fin.

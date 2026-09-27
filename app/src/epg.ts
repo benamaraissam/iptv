@@ -127,6 +127,7 @@ export class EpgStore {
     const fetcher = full && this.xtreamFull ? this.xtreamFull : this.xtreamFetch;
     if (fetcher && ch.streamId) {
       await this.slot();
+      mark('EPG : requête « ' + ch.name + ' »');
       try {
         let list = await fetcher(ch).catch(() => [] as Program[]);
         // Beaucoup de panels ne remplissent pas le guide complet (get_simple_data_table) :
