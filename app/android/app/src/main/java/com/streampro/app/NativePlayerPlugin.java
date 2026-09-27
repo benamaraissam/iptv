@@ -78,7 +78,6 @@ public class NativePlayerPlugin extends Plugin {
     layout = new VLCVideoLayout(getContext());
     layout.setBackgroundColor(Color.BLACK);
     layout.setVisibility(View.GONE);
-    layout.setZ(1f);
   }
 
   /** Surface ajoutée sous la WebView, qui devient transparente pour la laisser voir. */
