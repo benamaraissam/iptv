@@ -324,7 +324,9 @@ export function createNativeMedia(): NativeMedia {
       case 'time':
         // Juste après un déplacement, le lecteur envoie encore l'ancienne position :
         // on garde celle demandée tant qu'il ne l'a pas rejointe.
-        if (st.seekTarget >= 0 && Date.now() - st.seekAt < 4000 && Math.abs(s.position - st.seekTarget) > 3) break;
+        // (jusqu'à 10 s : un serveur lent met du temps à servir la nouvelle position ;
+        // la barre ne fait plus d'allers-retours entre l'ancienne et la nouvelle).
+        if (st.seekTarget >= 0 && Date.now() - st.seekAt < 10000 && Math.abs(s.position - st.seekTarget) > 3) break;
         st.seekTarget = -1;
         st.currentTime = s.position;
         if (st.readyState < 4) st.readyState = 4;

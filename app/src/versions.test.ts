@@ -50,3 +50,15 @@ describe('dedupeVersions', () => {
     expect(r.map((x) => x.group)).toEqual(['EN| SERIES']);
   });
 });
+
+describe('titleKey : formes courantes chez les fournisseurs', () => {
+  it('ignore plateforme, saison et article de tête', () => {
+    const k = titleKey({ name: 'House of the Dragon' }).split('|')[0];
+    for (const n of ['NF - House of the Dragon', 'HBO: House of the Dragon', 'House of the Dragon S01', 'House of the Dragon - Saison 2', 'The House of the Dragon', '|FR| House of the Dragon (VF)', 'AR - House Of The Dragon [MULTI] 4K'])
+      expect(titleKey({ name: n }).split('|')[0]).toBe(k);
+  });
+  it('garde les titres qui commencent par un mot de plateforme', () => {
+    expect(titleKey({ name: 'Mad Max' }).split('|')[0]).toBe('madmax');
+    expect(titleKey({ name: 'Sky High' }).split('|')[0]).toBe('skyhigh');
+  });
+});

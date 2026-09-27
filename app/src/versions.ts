@@ -97,15 +97,28 @@ export function titleKey(item: { name: string; year?: string }): string {
 }
 
 function computeTitleKey(item: { name: string; year?: string }): string {
-  let s = words(item.name.replace(/\[[^\]]*\]/g, ' '));
+  // Plateforme en préfixe suivie d'un séparateur (« NF - Titre », « HBO: Titre ») ;
+  // sans séparateur, c'est un mot du titre (« Sky High », « Max Payne »).
+  let s = words(item.name.replace(/\[[^\]]*\]/g, ' ').replace(PLATFORM, ''));
   let year = item.year || '';
   s = s.replace(/\b((19|20)\d{2})\b/g, (m) => {
     if (!year) year = m;
     return ' ';
   });
-  s = s.replace(NOISE, ' ').replace(/[^a-z0-9؀-ۿЀ-ӿ]+/g, '');
+  s = s
+    .replace(NOISE, ' ')
+    // Numéro de saison (« S01 », « Saison 2 », « Season 3 ») : même série.
+    .replace(/\b(s\d{1,2}(e\d{1,3})?|(saison|season|temporada|staffel|stagione)\s*\d{1,2})\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    // Article anglais de tête.
+    .replace(/^the /, '')
+    .replace(/[^a-z0-9؀-ۿЀ-ӿ]+/g, '');
   return s.length < 2 ? '' : s + '|' + year;
 }
+
+/** Plateformes souvent placées devant le titre par les fournisseurs (« NF - Titre »). */
+const PLATFORM = /^\W*(nf|netflix|hbo|hbo max|max|amz|amazon|prime|prime video|dsnp|disney\+?|disney plus|atvp|apple tv\+?|hulu|paramount\+?|starz|showtime|sky|canal\+?|osn|shahid|mbc|viu|crunchyroll)\s*[-:|]+\s*/i;
 
 function splitKey(k: string): [string, string] {
   const i = k.lastIndexOf('|');

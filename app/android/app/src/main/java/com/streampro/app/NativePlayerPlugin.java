@@ -363,27 +363,25 @@ public class NativePlayerPlugin extends Plugin {
   }
 
   /**
-   * Vérifie que la lecture a bien rejoint `target` (ms). Sur un compte à une seule
-   * connexion, le serveur refuse souvent la requête de déplacement tant qu'il n'a pas
-   * libéré la connexion précédente : on réessaie en laissant de plus en plus de temps
-   * (3 s, 5 s, 8 s), d'abord par un simple déplacement, puis en rouvrant le film à la
-   * position voulue.
+   * Vérifie, une seule fois et sans précipitation, que la lecture a rejoint `target` (ms).
+   * Un déplacement sur un serveur lent peut prendre plusieurs secondes : on attend 7 s, et
+   * on ne rouvre le film à la position voulue que si le lecteur joue bien, mais loin de
+   * la cible (déplacement refusé par le serveur). Jamais plus d'une réouverture.
    */
   private void ensurePosition(final long target, final int token, final int attempt) {
-    final long[] delays = {3000, 5000, 8000};
-    if (attempt >= delays.length) return;
+    if (attempt > 0) return;
     new android.os.Handler(android.os.Looper.getMainLooper())
         .postDelayed(
             () -> {
               if (player == null || token != seekToken || live || currentUrl == null) return;
               long now = player.getTime();
-              android.util.Log.i("StreamPro", "position vérifiée (essai " + (attempt + 1) + ") : " + now + " ms, cible " + target + " ms");
-              if (Math.abs(now - target) <= 20000) return;
-              if (attempt == 0 && player.isSeekable()) player.setTime(target);
-              else startMedia(currentUrl, target / 1000.0);
-              ensurePosition(target, token, attempt + 1);
+              boolean isPlaying = player.isPlaying();
+              android.util.Log.i("StreamPro", "position vérifiée : " + now + " ms, cible " + target + " ms, lecture=" + isPlaying);
+              if (!isPlaying || Math.abs(now - target) <= 30000) return;
+              android.util.Log.i("StreamPro", "déplacement non appliqué → réouverture à " + target / 1000 + " s");
+              startMedia(currentUrl, target / 1000.0);
             },
-            delays[attempt]);
+            7000);
   }
 
   /** Zone vidéo (en pixels CSS de la WebView) ; `visible` faux → surface cachée. */
