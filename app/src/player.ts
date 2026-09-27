@@ -260,12 +260,24 @@ export class Engine {
         // Audio MPEG (Layer II/III) : mpegts.js le pousse en flux brut « audio/mpeg », que Chrome
         // refuse de combiner avec la vidéo « video/mp4 » (erreur média dès le premier segment).
         // Emballé en fMP4 (audio/mp4;codecs=mp3), Chrome le décode, Layer II compris.
-        try {
-          const remuxer = player._transmuxer && player._transmuxer._controller && player._transmuxer._controller._remuxer;
-          if (remuxer && '_mp3UseMpegAudio' in remuxer) remuxer._mp3UseMpegAudio = false;
-        } catch {
-          /* structure interne différente : on garde le comportement par défaut */
-        }
+        // Le remuxeur n'existe qu'après « sourceopen » (asynchrone) : on le guette quelques ms,
+        // bien avant l'arrivée du premier segment audio.
+        const started = Date.now();
+        const flipMp3 = () => {
+          if (this.mpegts !== player) return;
+          try {
+            const remuxer = player._transmuxer && player._transmuxer._controller && player._transmuxer._controller._remuxer;
+            if (remuxer && '_mp3UseMpegAudio' in remuxer) {
+              remuxer._mp3UseMpegAudio = false;
+              mark('lecteur : audio MPEG → fMP4');
+              return;
+            }
+          } catch {
+            return;
+          }
+          if (Date.now() - started < 3000) window.setTimeout(flipMp3, 5);
+        };
+        flipMp3();
         this.play();
         return;
       }
