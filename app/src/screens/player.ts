@@ -65,7 +65,7 @@ export function player(params: Params): Screen {
   const knob = h('b', { class: 'seek-knob' });
   const seekbar = h('button', { type: 'button', class: 'seekbar focusable', 'aria-label': 'Position' }, h('span', { class: 'seek-track' }, fill, knob));
   const time = h('div', { class: 'pl-time' });
-  const playBtn = h('button', { type: 'button', class: 'pl-play focusable', on: { click: () => engine.togglePause() } });
+  const playBtn = h('button', { type: 'button', class: 'pl-play focusable', on: { click: () => togglePause() } });
   const extras = h('div', { class: 'pl-extras' });
 
   const hasQueue = queue.length > 1;
@@ -589,7 +589,10 @@ export function player(params: Params): Screen {
   const recover = (kind: PlaybackErrorKind, detail?: string) => {
     window.clearTimeout(recoverTimer);
     window.clearTimeout(stableTimer);
-    if (kind === 'denied' || kind === 'codec') return showError(kind, detail);
+    // Accès refusé sur le lien HLS : avant d'abandonner, on tente une fois l'autre conteneur
+    // (.ts) — beaucoup de fournisseurs refusent le HLS mais servent le MPEG-TS.
+    const altFirst = kind === 'denied' && isLive && attempts === 0 && alternateUrl(item.url, video);
+    if (kind === 'codec' || (kind === 'denied' && !altFirst)) return showError(kind, detail);
     attempts++;
     if (attempts > MAX_ATTEMPTS) return showError(kind, detail);
     // 1 s, 2 s, 4 s, 8 s ; à partir du 3e essai on se contente de la qualité la plus basse.
@@ -635,7 +638,14 @@ export function player(params: Params): Screen {
   // le flux est mort sans que le navigateur ne le signale → on se reconnecte.
   let stalledFor = 0;
   let lastTick = -1;
+  let userPaused = false;
+  const togglePause = () => {
+    userPaused = engine.togglePause();
+  };
   const watchdog = window.setInterval(() => {
+    // Lecture attendue mais le moteur est resté en pause (play() refusé au chargement,
+    // données arrivées après) : on relance.
+    if (video.paused && !userPaused && engine.currentUrl && errorBox.classList.contains('hidden') && video.readyState >= 2) engine.play();
     if (video.paused || video.ended || !engine.currentUrl || !errorBox.classList.contains('hidden')) {
       stalledFor = 0;
       lastTick = -1;
@@ -720,6 +730,7 @@ export function player(params: Params): Screen {
     title.textContent = item.title;
     subtitle.textContent = item.subtitle || '';
     attempts = 0;
+    userPaused = false;
     engine.degraded = false;
     window.clearTimeout(recoverTimer);
     errorBox.classList.add('hidden');
@@ -762,6 +773,7 @@ export function player(params: Params): Screen {
   // ───── Démarrage ─────
   let saveTimer: number | undefined;
   const start = (force = false) => {
+    userPaused = false;
     errorBox.classList.add('hidden');
     reconnect.classList.add('hidden');
     window.clearTimeout(recoverTimer);
@@ -862,7 +874,7 @@ export function player(params: Params): Screen {
         case 'playpause':
         case 'play':
         case 'pause':
-          engine.togglePause();
+          togglePause();
           showOverlay();
           return true;
         case 'blue':

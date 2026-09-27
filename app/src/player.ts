@@ -360,9 +360,19 @@ export class Engine {
         });
         this.hls = hls;
         let mediaRecoveries = 0;
+        let hlsDenied = false;
         hls.on(HlsCtor.Events.ERROR, (_evt, data) => {
-          if (!data.fatal) return;
           const status: number = (data.response && (data.response as any).code) || 0;
+          // Manifeste accepté mais segments refusés (403) : chez ce fournisseur seul le
+          // MPEG-TS passe. On n'attend pas les 20 s du chien de garde : bascule immédiate
+          // sur le .ts, retenue pour toutes les chaînes de ce serveur.
+          if (!data.fatal && !hlsDenied && DENIED_STATUS[status] && /^frag/i.test(String(data.details)) && alternateUrl(url, v)) {
+            hlsDenied = true;
+            setTsHost(hostOf(url), true);
+            this.fail('network', 'segments HLS refusés (HTTP ' + status + ') → MPEG-TS');
+            return;
+          }
+          if (!data.fatal) return;
           const level = hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : hls.levels[0];
           const vcodec = level && level.videoCodec;
           // Deuxième essai (lien sans .m3u8) : ce n'était pas du HLS, le format n'est pas lisible ici.
@@ -412,7 +422,13 @@ export class Engine {
 
   play(): void {
     const p = this.video.play();
-    if (p && typeof p.catch === 'function') p.catch(() => undefined);
+    if (p && typeof p.catch === 'function')
+      p.catch((e: any) => {
+        // Lecture refusée par le moteur (geste utilisateur requis, source non prête…) :
+        // on le note pour le diagnostic ; le chien de garde du lecteur réessaiera.
+        this.errors.push(new Date().toISOString().slice(11, 19) + ' play() refusé : ' + String((e && e.name) || '') + ' ' + String((e && e.message) || e));
+        if (this.errors.length > 12) this.errors.shift();
+      });
   }
 
   togglePause(): boolean {
