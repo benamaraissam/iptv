@@ -59,6 +59,23 @@ export function alternateUrl(url: string, video: HTMLVideoElement): string | und
   return isTsUrl(alt) && !canPlayTs(video) ? undefined : alt;
 }
 
+/** Import dynamique borné : un module qui n'arrive pas (serveur de dev en cours de rechargement) ne bloque pas le lecteur. */
+function importWithTimeout<T>(load: () => Promise<T>, name: string, ms = 15000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(name + ' : délai de chargement dépassé')), ms);
+    load().then(
+      (m) => {
+        window.clearTimeout(timer);
+        resolve(m);
+      },
+      (e) => {
+        window.clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 function codecUnsupported(codec?: string): boolean {
   if (!codec) return false;
   try {
@@ -166,7 +183,7 @@ export class Engine {
     if (!forceHls && isTsUrl(url) && !v.canPlayType('video/mp2t') && !v.canPlayType('video/MP2T')) {
       let M: any = null;
       try {
-        const mod: any = await import('mpegts.js');
+        const mod: any = await importWithTimeout(() => import('mpegts.js'), 'mpegts.js');
         M = mod.default || mod;
       } catch (e) {
         // Module introuvable (serveur de développement en cours de rechargement…) :
@@ -225,7 +242,7 @@ export class Engine {
     if (isHls && !nativeHls) {
       let HlsCtor: typeof Hls;
       try {
-        HlsCtor = (await import('hls.js')).default;
+        HlsCtor = (await importWithTimeout(() => import('hls.js'), 'hls.js')).default;
       } catch (e) {
         if (token === this.loadToken) this.fail('network', 'module hls.js : ' + String((e as Error).message || e));
         return;
