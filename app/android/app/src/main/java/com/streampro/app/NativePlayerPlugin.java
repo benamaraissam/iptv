@@ -44,6 +44,9 @@ public class NativePlayerPlugin extends Plugin {
   private boolean playing;
   /** Lecture arrêtée par le passage en arrière-plan, et position où la reprendre (ms). */
   private boolean stoppedInBackground;
+  /** Lien en cours et compteur de déplacements (seul le dernier est vérifié). */
+  private String currentUrl;
+  private int seekToken;
   private long resumeAt;
 
   /** Dès le démarrage : la WebView est transparente et le fond de fenêtre prend la couleur de l'application. */
@@ -206,23 +209,33 @@ public class NativePlayerPlugin extends Plugin {
                 height = 0;
                 buffering = 0;
                 playing = false;
-                player.stop();
                 stoppedInBackground = false;
                 resumeAt = 0;
-                Media media = new Media(libVLC, android.net.Uri.parse(url));
-                media.setHWDecoderEnabled(true, false);
-                media.addOption(":http-user-agent=VLC/3.0.20 LibVLC/3.0.20");
-                media.addOption(live ? ":network-caching=1500" : ":network-caching=3000");
-                if (startAt > 0) media.addOption(":start-time=" + startAt);
-                player.setMedia(media);
-                media.release();
+                currentUrl = url;
+                seekToken++;
+                startMedia(url, startAt);
                 layout.setVisibility(View.VISIBLE);
-                player.play();
                 call.resolve();
               } catch (Exception e) {
                 call.reject("libVLC : " + e.getMessage());
               }
             });
+  }
+
+  /**
+   * Ouvre le média (arrêt préalable : la connexion précédente est fermée avant d'en ouvrir
+   * une nouvelle — indispensable sur les comptes à une seule connexion).
+   */
+  private void startMedia(String url, double startAtSec) {
+    player.stop();
+    Media media = new Media(libVLC, android.net.Uri.parse(url));
+    media.setHWDecoderEnabled(true, false);
+    media.addOption(":http-user-agent=VLC/3.0.20 LibVLC/3.0.20");
+    media.addOption(live ? ":network-caching=1500" : ":network-caching=3000");
+    if (startAtSec > 0) media.addOption(":start-time=" + startAtSec);
+    player.setMedia(media);
+    media.release();
+    player.play();
   }
 
   @PluginMethod
@@ -231,9 +244,10 @@ public class NativePlayerPlugin extends Plugin {
         .runOnUiThread(
             () -> {
               if (player != null) {
-                player.play();
-                // Reprise après un arrêt en arrière-plan : même position (film / épisode).
-                if (stoppedInBackground && resumeAt > 0) player.setTime(resumeAt);
+                // Reprise après un arrêt en arrière-plan : réouverture à la même position
+                // (film / épisode) ; sinon simple reprise.
+                if (stoppedInBackground && resumeAt > 0 && currentUrl != null) startMedia(currentUrl, resumeAt / 1000.0);
+                else player.play();
                 stoppedInBackground = false;
               }
               call.resolve();
@@ -278,6 +292,23 @@ public class NativePlayerPlugin extends Plugin {
                 if (seekable) player.setTime(ms);
                 else if (len > 0) player.setPosition(Math.max(0f, Math.min(1f, (float) ms / len)));
                 else player.setTime(ms);
+                // Vérification 3 s plus tard : si la lecture n'a pas rejoint la position voulue
+                // (déplacement refusé par le serveur, flux sans « Range »…), on rouvre le film
+                // directement à cette position (:start-time), connexion précédente fermée.
+                final int token = ++seekToken;
+                final long target = ms;
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                    .postDelayed(
+                        () -> {
+                          if (player == null || token != seekToken || live || currentUrl == null) return;
+                          long now = player.getTime();
+                          android.util.Log.i("StreamPro", "seek vérifié : position " + now + " ms (cible " + target + " ms)");
+                          if (Math.abs(now - target) > 20000) {
+                            android.util.Log.i("StreamPro", "seek non appliqué → réouverture à " + target / 1000 + " s");
+                            startMedia(currentUrl, target / 1000.0);
+                          }
+                        },
+                        3000);
               }
               call.resolve();
             });
