@@ -61,6 +61,8 @@ public class NativePlayerPlugin extends Plugin {
     if (libVLC != null) return;
     ArrayList<String> opts = new ArrayList<>();
     // Même identité réseau que le proxy : beaucoup de fournisseurs n'acceptent que VLC.
+    // Journal détaillé dans logcat (adb logcat -s VLC) : sortie vidéo, décodeur choisi…
+    opts.add("-vv");
     opts.add("--http-user-agent=VLC/3.0.20 LibVLC/3.0.20");
     opts.add("--http-reconnect");
     opts.add("--network-caching=1500");
@@ -278,6 +280,24 @@ public class NativePlayerPlugin extends Plugin {
               lp.setMargins(Math.round((float) x * d), Math.round((float) y * d), 0, 0);
               layout.setLayoutParams(lp);
               layout.setVisibility(View.VISIBLE);
+              call.resolve();
+            });
+  }
+
+  /** Diagnostic : surface vidéo au-dessus de la WebView (vrai) ou dessous (faux, normal). */
+  @PluginMethod
+  public void setOnTop(PluginCall call) {
+    final boolean on = call.getBoolean("on", false);
+    getActivity()
+        .runOnUiThread(
+            () -> {
+              if (layout != null && layout.getParent() instanceof ViewGroup) {
+                ViewGroup parent = (ViewGroup) layout.getParent();
+                ViewGroup.LayoutParams lp = layout.getLayoutParams();
+                parent.removeView(layout);
+                if (on) parent.addView(layout, lp);
+                else parent.addView(layout, 0, lp);
+              }
               call.resolve();
             });
   }

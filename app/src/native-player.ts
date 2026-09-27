@@ -46,12 +46,15 @@ interface NativePlayerPlugin {
   setBounds(o: { x: number; y: number; width: number; height: number; visible: boolean }): Promise<void>;
   getState(): Promise<NativeState>;
   getTracks(): Promise<NativeTracks>;
+  setOnTop(o: { on: boolean }): Promise<void>;
   setAudioTrack(o: { id: number }): Promise<void>;
   setSubtitleTrack(o: { id: number }): Promise<void>;
   addListener(event: 'state', fn: (s: NativeState) => void): Promise<PluginListenerHandle>;
 }
 
 const NativePlayer = registerPlugin<NativePlayerPlugin>('NativePlayer');
+// Diagnostic depuis la console (chrome://inspect) : spNative.setOnTop({ on: true }), spNative.getState()…
+(window as any).spNative = NativePlayer;
 
 function available(): boolean {
   if (platform !== 'android') return false;
