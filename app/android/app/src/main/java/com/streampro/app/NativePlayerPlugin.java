@@ -298,6 +298,25 @@ public class NativePlayerPlugin extends Plugin {
             });
   }
 
+  /** Diagnostic : ré-applique la transparence de la WebView, avec le type de calque demandé. */
+  @PluginMethod
+  public void setWebTransparent(PluginCall call) {
+    final String layer = call.getString("layer", "none");
+    getActivity()
+        .runOnUiThread(
+            () -> {
+              WebView web = getBridge().getWebView();
+              if (web != null) {
+                web.setBackgroundColor(Color.TRANSPARENT);
+                if ("software".equals(layer)) web.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+                else if ("hardware".equals(layer)) web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                else if ("default".equals(layer)) web.setLayerType(View.LAYER_TYPE_NONE, null);
+                web.invalidate();
+              }
+              call.resolve();
+            });
+  }
+
   private static android.view.SurfaceView findSurface(View v) {
     if (v instanceof android.view.SurfaceView) return (android.view.SurfaceView) v;
     if (v instanceof ViewGroup) {

@@ -47,6 +47,8 @@ public class MainActivity extends BridgeActivity {
         s.setUserAgentString(s.getUserAgentString() + " StreamProTV");
       }
       bridge.setWebViewClient(new ProxyWebViewClient(bridge));
+      // Lecteur natif : la vidéo est dessinée sous la WebView, qui doit être transparente.
+      bridge.getWebView().setBackgroundColor(android.graphics.Color.TRANSPARENT);
     }
   }
 

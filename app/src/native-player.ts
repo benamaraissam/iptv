@@ -47,6 +47,7 @@ interface NativePlayerPlugin {
   getState(): Promise<NativeState>;
   getTracks(): Promise<NativeTracks>;
   setOnTop(o: { on: boolean }): Promise<void>;
+  setWebTransparent(o: { layer: 'none' | 'default' | 'hardware' | 'software' }): Promise<void>;
   setAudioTrack(o: { id: number }): Promise<void>;
   setSubtitleTrack(o: { id: number }): Promise<void>;
   addListener(event: 'state', fn: (s: NativeState) => void): Promise<PluginListenerHandle>;

@@ -11,6 +11,8 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: true,
+    // WebView transparente : la vidéo du lecteur natif (libVLC) est dessinée dessous.
+    backgroundColor: '#00000000',
   },
 };
 
