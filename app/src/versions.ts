@@ -244,6 +244,53 @@ export class VersionIndex<T extends Channel | Show> {
   }
 }
 
+/**
+ * Une seule carte par titre : les versions linguistiques d'un même film ou d'une même
+ * série (même titre nettoyé, même année quand les deux la connaissent) sont regroupées ;
+ * la langue se choisit ensuite sur la fiche. L'ordre de la liste est conservé : la
+ * première version rencontrée garde sa place, remplacée par une version dans la langue
+ * préférée si elle arrive plus loin.
+ */
+export function dedupeVersions<T extends { name: string; group: string; year?: string }>(list: T[], prefer?: string): T[] {
+  const out: T[] = [];
+  // titre → années vues ('' = sans année) et position dans `out` pour chaque clé retenue
+  const years = new Map<string, Record<string, number>>();
+  for (const x of list) {
+    const k = titleKey(x);
+    if (!k) {
+      out.push(x);
+      continue;
+    }
+    const [title, year] = splitKey(k);
+    const seen = years.get(title);
+    let at = -1;
+    if (seen) {
+      if (!year) {
+        // Sans année : même titre que n'importe quelle version déjà vue.
+        for (const y in seen) {
+          at = seen[y];
+          break;
+        }
+      } else if (seen[year] !== undefined) at = seen[year];
+      else if (seen[''] !== undefined) at = seen[''];
+    }
+    if (at >= 0) {
+      if (prefer && languageOf(x) === prefer && languageOf(out[at]) !== prefer) out[at] = x;
+      continue;
+    }
+    const rec = seen || {};
+    rec[year] = out.length;
+    if (!seen) years.set(title, rec);
+    out.push(x);
+  }
+  return out;
+}
+
+/** Langue de l'interface, pour choisir la version affichée d'un titre regroupé. */
+export function interfaceLanguage(lang: string | undefined): string | undefined {
+  return lang === 'fr' ? 'Français' : lang === 'en' ? 'English' : undefined;
+}
+
 /** Libellés distincts pour un choix de version : langue, complétée par la catégorie si besoin. */
 export function versionLabels(list: { name: string; group: string }[]): string[] {
   const langs = list.map((v) => languageOf(v) || v.group);

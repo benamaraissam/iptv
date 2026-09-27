@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { languageOf, titleKey, VersionIndex, versionLabels } from './versions';
+import { dedupeVersions, languageOf, titleKey, VersionIndex, versionLabels } from './versions';
 
 const mv = (id: string, name: string, group: string, year?: string): any => ({ id, name, group, year, kind: 'movie', url: '' });
 
@@ -29,5 +29,24 @@ describe('versions linguistiques', () => {
 
   it('distingue deux versions de même langue par leur catégorie', () => {
     expect(versionLabels([mv('a', 'X', 'FR| FILMS'), mv('b', 'X', 'FR| FILMS 4K')])).toEqual(['Français · FR| FILMS', 'Français · FR| FILMS 4K']);
+  });
+});
+
+describe('dedupeVersions', () => {
+  const L = (name: string, group: string) => ({ name, group });
+  it('une seule carte par titre, dans la langue préférée, à la place de la première', () => {
+    const r = dedupeVersions(
+      [L('Oppenheimer (2023)', 'EN| MOVIES'), L('Dune', 'FR| FILMS'), L('FR - Oppenheimer 4K', 'FR| FILMS'), L('AR| Oppenheimer 2023', 'AR| AFLAM')],
+      'Français',
+    );
+    expect(r.map((x) => x.name)).toEqual(['FR - Oppenheimer 4K', 'Dune']);
+  });
+  it('garde séparés deux films de même titre et d’années différentes', () => {
+    const r = dedupeVersions([L('Avatar (2009)', 'FR| FILMS'), L('Avatar (2022)', 'EN| MOVIES'), L('Avatar', 'AR| AFLAM')]);
+    expect(r.map((x) => x.name)).toEqual(['Avatar (2009)', 'Avatar (2022)']);
+  });
+  it('sans langue préférée, la première version reste', () => {
+    const r = dedupeVersions([L('Lupin', 'EN| SERIES'), L('Lupin', 'FR| SERIES')]);
+    expect(r.map((x) => x.group)).toEqual(['EN| SERIES']);
   });
 });

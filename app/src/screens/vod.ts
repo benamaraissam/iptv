@@ -4,9 +4,10 @@ import type { Channel, Show } from '../types';
 import { h, clear, pagedList } from '../ui/dom';
 import { btn, card, chips, emptyState, iconBtn, screenHeader, type ChipOption } from '../ui/components';
 import { t } from '../i18n';
+import * as store from '../storage';
 import { brandClock, catalogProgress, categoryButton, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { icon } from '../ui/icons';
-import { languageCounts, languageOf } from '../versions';
+import { dedupeVersions, interfaceLanguage, languageCounts, languageOf } from '../versions';
 import { matchesQuery } from '../textsearch';
 
 type Item = Channel | Show;
@@ -54,7 +55,10 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
     // trie que les meilleurs, une box TV mettait 0,5 s à tout trier ; « Tout afficher » fait le reste.
     fullCount = list.length;
     truncated = !showAll && list.length > PARTIAL_MIN;
-    list = truncated ? topK(list, cmp, PARTIAL_K) : list.slice().sort(cmp);
+    list = truncated ? topK(list, cmp, PARTIAL_K * 2) : list.slice().sort(cmp);
+    // Une carte par titre : les autres langues se choisissent sur la fiche.
+    list = dedupeVersions(list, lang || interfaceLanguage(store.getSettings().lang));
+    if (truncated) list = list.slice(0, PARTIAL_K);
     return imageFirst(list, (x) => ('kind' in x ? x.logo : x.cover));
   };
 

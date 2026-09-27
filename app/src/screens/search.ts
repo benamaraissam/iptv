@@ -9,7 +9,7 @@ import { t } from '../i18n';
 import { posterCard } from './vod';
 import { brandClock, catalogProgress } from './common';
 import { hasGoodImage } from '../imgcache';
-import { languageCounts, languageOf } from '../versions';
+import { dedupeVersions, interfaceLanguage, languageCounts, languageOf } from '../versions';
 import { rankSearch } from '../textsearch';
 
 const MAX_RESULTS = 60;
@@ -52,13 +52,14 @@ export function search(): Screen {
     // Recherche tolérante (fautes, mots oubliés, ordre libre), classée par pertinence ;
     // à pertinence égale, les titres avec image puis les mieux notés passent devant.
     const boost = (x: { rating?: number }, img?: string) => (hasGoodImage(img) ? 500 : 0) + Math.min(499, Math.round((x.rating || 0) * 40));
-    const find = <T extends { id: string; name: string; group: string; rating?: number }>(list: T[], img: (x: T) => string | undefined) => {
-      const res = rankSearch(list, q, MAX_RESULTS * 2, (x) => boost(x, img(x)));
-      return open(res).slice(0, MAX_RESULTS);
+    const find = <T extends { id: string; name: string; group: string; rating?: number }>(list: T[], img: (x: T) => string | undefined, versions = false) => {
+      const res = open(rankSearch(list, q, MAX_RESULTS * 3, (x) => boost(x, img(x))));
+      // Films / séries : une carte par titre, les autres langues se choisissent sur la fiche.
+      return (versions ? dedupeVersions(res, lang || interfaceLanguage(store.getSettings().lang)) : res).slice(0, MAX_RESULTS);
     };
     const liveRes = scope === 'all' || scope === 'live' ? find(cat.live, (c) => c.logo) : [];
-    const movieRes = scope === 'all' || scope === 'movies' ? find(cat.movies, (c) => c.logo) : [];
-    const showRes = scope === 'all' || scope === 'series' ? find(cat.shows, (c) => c.cover) : [];
+    const movieRes = scope === 'all' || scope === 'movies' ? find(cat.movies, (c) => c.logo, true) : [];
+    const showRes = scope === 'all' || scope === 'series' ? find(cat.shows, (c) => c.cover, true) : [];
     if (!liveRes.length && !movieRes.length && !showRes.length) {
       body.appendChild(emptyState('noResults', t('noResults'), t('noResultsText')));
       return;

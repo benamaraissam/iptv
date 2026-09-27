@@ -169,6 +169,10 @@ public class NativePlayerPlugin extends Plugin {
   private JSObject state(String kind) {
     JSObject o = new JSObject();
     o.put("kind", kind);
+    if (player != null) {
+      long len = player.getLength();
+      if (len > 0) length = len;
+    }
     o.put("position", player == null ? 0 : player.getTime() / 1000.0);
     o.put("duration", length > 0 ? length / 1000.0 : 0);
     o.put("playing", playing);
@@ -254,7 +258,17 @@ public class NativePlayerPlugin extends Plugin {
     getActivity()
         .runOnUiThread(
             () -> {
-              if (player != null && player.isSeekable()) player.setTime((long) (pos * 1000));
+              if (player != null) {
+                long ms = (long) (pos * 1000);
+                long len = player.getLength();
+                boolean seekable = player.isSeekable();
+                android.util.Log.i("StreamPro", "seek " + ms + " ms / " + len + " ms, seekable=" + seekable);
+                // Film / épisode en HTTP : déplacement par le temps ; si le flux ne se déclare
+                // pas « seekable » mais que sa durée est connue, par la position relative.
+                if (seekable) player.setTime(ms);
+                else if (len > 0) player.setPosition(Math.max(0f, Math.min(1f, (float) ms / len)));
+                else player.setTime(ms);
+              }
               call.resolve();
             });
   }

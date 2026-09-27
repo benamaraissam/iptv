@@ -2,6 +2,7 @@ import { h, detach, clear } from './dom';
 import { mark } from '../diag';
 import { hasGoodImage, hostLooksDown, hostProxyState, markBadImage, markHostProxy, worthTrying } from '../imgcache';
 import { proxied, thumb } from '../http';
+import { logoInfo, tintVar } from './logo';
 import { icon, type IconName } from './icons';
 import { focusEl, focusFirst, getNavRoot, setNavRoot } from '../navigation';
 import { t } from '../i18n';
@@ -120,6 +121,7 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
   const fallback = h('span', { class: 'art-initials', text: initials(name) });
   box.appendChild(fallback);
   const canProxy = !!src && proxied(src) !== src;
+  const isLogo = /\bcontain\b/.test(cls);
   if (src && worthTrying(src, canProxy)) {
     let viaProxy = false;
     let retried = false;
@@ -177,6 +179,20 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
           if (viaProxy) markHostProxy(src, true);
           box.classList.remove('loading');
           box.classList.add('loaded');
+          // Logo de chaîne : présentation choisie d'après le logo lui-même (voir ui/logo.ts).
+          if (isLogo) {
+            logoInfo(src, img, (info) => {
+              if (!info) return;
+              box.classList.add(info.transparent ? (info.dark ? 'logo-dark' : 'logo-light') : 'logo-opaque');
+              const tv = tintVar(info);
+              if (tv) box.style.setProperty('--tint', tv);
+              try {
+                box.dispatchEvent(new CustomEvent('logoinfo', { bubbles: true, detail: info }));
+              } catch {
+                /* moteur très ancien */
+              }
+            });
+          }
         },
         error: () => fail(),
       },
@@ -193,7 +209,8 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
       // Pendant le téléchargement : animation de chargement, image masquée (sinon le
       // navigateur dessine l'image par blocs sur un serveur lent, comme si elle était corrompue).
       box.classList.add('loading');
-      img.src = viaProxy ? proxied(src) : thumb(src, /contain/.test(cls) ? 240 : /round/.test(cls) ? 160 : 400);
+      // Vignette à la taille d'affichage : grand logo (affiche d'accueil) net, petits logos légers.
+      img.src = viaProxy ? proxied(src) : thumb(src, /\bxl\b/.test(cls) ? 720 : isLogo ? 320 : /round/.test(cls) ? 160 : 400);
     });
   }
   return box;

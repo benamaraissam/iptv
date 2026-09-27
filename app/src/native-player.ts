@@ -103,7 +103,11 @@ export function createNativeMedia(): NativeMedia {
     firstFrameSent: false,
     /** Surface cachée (erreur, fin) pour laisser voir le message affiché par la page. */
     hidden: false,
+    /** Déplacement demandé (s) et son heure : la position affichée le suit tout de suite. */
+    seekTarget: -1,
+    seekAt: 0,
   };
+  let seekTimer: number | undefined;
   const fire = (type: string) => {
     try {
       el.dispatchEvent(new Event(type));
@@ -118,10 +122,19 @@ export function createNativeMedia(): NativeMedia {
     currentTime: {
       get: () => st.currentTime,
       set: (v: number) => {
-        if (!st.url) return;
-        st.currentTime = v;
-        void NativePlayer.seek({ position: v });
+        if (!st.url || !isFinite(v)) return;
+        // Appuis répétés (◀ ▶, avance rapide) : la position affichée suit chaque appui, et
+        // un seul déplacement est envoyé au lecteur natif une fois les appuis terminés.
+        st.currentTime = Math.max(0, v);
+        st.seekTarget = st.currentTime;
+        st.seekAt = Date.now();
+        window.clearTimeout(seekTimer);
+        seekTimer = window.setTimeout(() => {
+          st.seekAt = Date.now();
+          void NativePlayer.seek({ position: st.seekTarget });
+        }, 280);
         fire('seeking');
+        fire('timeupdate');
       },
     },
     duration: { get: () => st.duration },
@@ -243,6 +256,11 @@ export function createNativeMedia(): NativeMedia {
     if (!st.url) return;
     if (s.width) st.width = s.width;
     if (s.height) st.height = s.height;
+    // Durée connue par n'importe quel événement (certains flux n'envoient pas « length »).
+    if (s.duration > 0 && st.duration !== s.duration && !st.live) {
+      st.duration = s.duration;
+      fire('durationchange');
+    }
     switch (s.kind) {
       case 'opening':
         fire('waiting');
@@ -297,6 +315,10 @@ export function createNativeMedia(): NativeMedia {
         fire('error');
         break;
       case 'time':
+        // Juste après un déplacement, le lecteur envoie encore l'ancienne position :
+        // on garde celle demandée tant qu'il ne l'a pas rejointe.
+        if (st.seekTarget >= 0 && Date.now() - st.seekAt < 4000 && Math.abs(s.position - st.seekTarget) > 3) break;
+        st.seekTarget = -1;
         st.currentTime = s.position;
         if (st.readyState < 4) st.readyState = 4;
         fire('timeupdate');

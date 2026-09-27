@@ -90,7 +90,6 @@ html.lite *:after {
 }
 html.lite .hero-enter .hero-bg,
 html.lite .hero-enter .hero-bg .art.cover img,
-html.lite .hero-enter .hero-ambient,
 html.lite .hero-enter .hero-content,
 html.lite .hero-enter .hero-logo,
 html.lite .art.loading:after {
@@ -129,9 +128,6 @@ html.lite .bgart .bg-cover {
 }
 html.lite .bgart {
   background: #0a1030;
-}
-html.lite .hero-ambient {
-  opacity: 0.22;
 }
 
 * {
@@ -613,6 +609,18 @@ html.kbd .btn:focus {
 .art.contain img {
   object-fit: contain;
   padding: 14%;
+}
+/* Logo sombre sur fond transparent (illisible sur le fond de l'app) : plaque claire. */
+.art.contain.logo-dark,
+.card-tile .art.contain.logo-dark {
+  background: linear-gradient(160deg, #fbfcff 0%, #dfe4ef 100%) !important;
+}
+.art.contain.logo-dark .art-initials {
+  color: #1b2350;
+}
+/* Logo avec son propre fond (carré, bandeau) : il occupe mieux son cadre. */
+.art.contain.logo-opaque img {
+  padding: 8%;
 }
 .art-initials {
   font-size: 1.5rem;
@@ -1678,11 +1686,15 @@ html.native-video .native-video {
   box-shadow: 0 0 0.8rem #2f86ff;
 }
 html.tv .seekbar:focus,
-html.kbd .seekbar:focus {
+html.kbd .seekbar:focus,
+html.lite .seekbar:focus {
   box-shadow: none;
+  outline: none !important;
 }
+/* Focus de la barre : piste plus épaisse et curseur agrandi, sans cadre (style Netflix). */
 .seekbar:focus .seek-track {
   height: 0.4rem;
+  background: rgba(255, 255, 255, 0.35);
 }
 .seekbar:focus .seek-knob {
   -webkit-transform: scale(1.5);
@@ -3661,8 +3673,7 @@ html.kbd .picker-item:focus {
   -webkit-animation: heroFade 0.7s ease-out;
   animation: heroFade 0.7s ease-out;
 }
-.hero-enter .hero-bg .art.cover img,
-.hero-enter .hero-ambient {
+.hero-enter .hero-bg .art.cover img {
   -webkit-animation: kenburns 14s ease-out forwards;
   animation: kenburns 14s ease-out forwards;
 }
@@ -3696,18 +3707,17 @@ html.kbd .picker-item:focus {
   to { opacity: 1; transform: none; }
 }
 
-/* Chaîne en vedette : halo coloré issu du logo + logo net */
-.hero-ambient {
+/* Chaîne en vedette : fond teinté par la couleur du logo + grand logo net */
+.hero-tint {
   position: absolute;
-  top: -15%;
-  left: -15%;
-  right: -15%;
-  bottom: -15%;
-  background-size: cover;
-  background-position: center;
-  -webkit-filter: blur(70px) saturate(1.8);
-  filter: blur(70px) saturate(1.8);
-  opacity: 0.55;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(55% 75% at 72% 36%, rgba(var(--tint, 124, 92, 255), 0.42) 0%, rgba(var(--tint, 124, 92, 255), 0.12) 48%, rgba(6, 10, 28, 0) 78%),
+    linear-gradient(135deg, #0d1336 0%, #060a1c 70%);
+  -webkit-transition: background 0.6s;
+  transition: background 0.6s;
 }
 .billboard.is-live .hero-bg:after {
   content: '';
@@ -3720,7 +3730,8 @@ html.kbd .picker-item:focus {
 }
 .hero-logo {
   position: absolute;
-  z-index: 1;
+  /* Au-dessus du dégradé de l'affiche (.hero-shade), qui assombrissait le logo. */
+  z-index: 2;
   display: none;
   right: 7%;
   top: 14%;
@@ -3732,6 +3743,20 @@ html.kbd .picker-item:focus {
 }
 .hero-logo .art {
   background: none !important;
+}
+/* Grand logo sombre : présenté sur une plaque claire arrondie, comme une carte de chaîne. */
+.hero-logo .art.contain.logo-dark {
+  background: linear-gradient(160deg, #fbfcff 0%, #dfe4ef 100%) !important;
+  border-radius: 1.2rem;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.5);
+}
+.hero-logo .art.contain.logo-dark img {
+  padding: 10% 14% !important;
+  -webkit-filter: none;
+  filter: none;
+}
+.hero-logo .art.contain.logo-opaque img {
+  border-radius: 1rem;
 }
 .hero-logo .art img {
   padding: 0 !important;
@@ -4060,22 +4085,14 @@ html.kbd .card-top:focus .top-num,
 }
 .card-tile .card-media {
   padding-top: 56.25%;
-  background: #0b1030;
+  background: radial-gradient(120% 100% at 50% 0%, #1b2350 0%, #0b1030 72%);
 }
-.tile-ambient {
-  position: absolute;
-  top: -30%;
-  left: -30%;
-  right: -30%;
-  bottom: -30%;
-  background-size: cover;
-  background-position: center;
-  -webkit-filter: blur(22px) saturate(1.6);
-  filter: blur(22px) saturate(1.6);
-  opacity: 0.45;
+/* Teinte issue du logo (couleur dominante), en dégradé discret */
+.card-tile .card-media.tinted {
+  background: radial-gradient(120% 110% at 50% 18%, rgba(var(--tint), 0.5) 0%, rgba(var(--tint), 0.16) 48%, #0b1030 88%);
 }
 .card-tile .art.contain {
-  background: rgba(8, 12, 34, 0.35) !important;
+  background: none !important;
 }
 .card-tile .art.contain img {
   padding: 16% 22%;

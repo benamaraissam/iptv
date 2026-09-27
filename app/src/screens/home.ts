@@ -6,6 +6,8 @@ import { icon, logoMark, type IconName } from '../ui/icons';
 import { art, bgArt, btn, card, hasModal, iconBtn, rail, rescuableArt } from '../ui/components';
 import { focusEl } from '../navigation';
 import { mark, timed } from '../diag';
+import { tintVar, type LogoInfo } from '../ui/logo';
+import { dedupeVersions, interfaceLanguage } from '../versions';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
@@ -61,8 +63,10 @@ export function home(): Screen {
 
   // Les « meilleurs N » se choisissent en une passe (pas de tri de 170 000 titres) ;
   // on en prend un peu plus que nécessaire pour que ceux avec image passent devant.
-  const recent = imageFirst(topN(vod, 60, (x) => x.added || 0), posterOf).slice(0, 20);
-  const top10 = imageFirst(topN(vod, 40, (x) => x.rating || 0), posterOf).slice(0, 10);
+  // Une carte par titre (les versions linguistiques se choisissent sur la fiche).
+  const prefer = interfaceLanguage(store.getSettings().lang);
+  const recent = imageFirst(dedupeVersions(topN(vod, 90, (x) => x.added || 0), prefer), posterOf).slice(0, 20);
+  const top10 = imageFirst(dedupeVersions(topN(vod, 60, (x) => x.rating || 0), prefer), posterOf).slice(0, 10);
 
   // ───── Éléments mis en avant (rotation) ─────
   mark('accueil : éléments mis en avant');
@@ -133,8 +137,11 @@ export function home(): Screen {
     hero.classList.toggle('is-live', !!liveCh);
     const image = e ? e.poster : liveCh ? liveCh.logo : backdropOf(x!);
     if (liveCh) {
-      if (image) heroBg.appendChild(h('div', { class: 'hero-ambient', style: 'background-image:url("' + image.replace(/"/g, '%22') + '")' }));
-      heroLogo.appendChild(art(image, title, 'contain'));
+      // Chaîne : fond teinté par la couleur du logo, grand logo net (vignette haute résolution).
+      const tint = h('div', { class: 'hero-tint' });
+      heroBg.appendChild(tint);
+      applyTint(tint, heroLogo);
+      heroLogo.appendChild(art(image, title, 'contain xl'));
     } else if (image) heroBg.appendChild(bgArt(image, title));
     hero.classList.remove('hero-enter');
     void hero.offsetWidth; // relance l'animation de fondu
@@ -360,10 +367,10 @@ export function home(): Screen {
   // Genres films / séries
   const movieGroups = topGroups(movies, N_MOVIE_GENRES);
   const byMovieGroup = firstByGroup(movies, movieGroups, RAIL * 2);
-  for (const g of movieGroups) addRow(g, () => imageFirst(byMovieGroup[g], posterOf).slice(0, RAIL).map(posterCard), () => app.push('movies', { group: g }));
+  for (const g of movieGroups) addRow(g, () => imageFirst(dedupeVersions(byMovieGroup[g], prefer), posterOf).slice(0, RAIL).map(posterCard), () => app.push('movies', { group: g }));
   const showGroups = topGroups(shows, N_SHOW_GENRES);
   const byShowGroup = firstByGroup(shows, showGroups, RAIL * 2);
-  for (const g of showGroups) addRow(g, () => imageFirst(byShowGroup[g], posterOf).slice(0, RAIL).map(posterCard), () => app.push('series', { group: g }));
+  for (const g of showGroups) addRow(g, () => imageFirst(dedupeVersions(byShowGroup[g], prefer), posterOf).slice(0, RAIL).map(posterCard), () => app.push('series', { group: g }));
 
   // Chaînes par catégorie
   const liveGroups = topGroups(live, N_LIVE_GROUPS);
@@ -606,21 +613,35 @@ function pickLiveNow(live: Channel[], history: store.HistoryEntry[], favIds: str
 }
 
 /** Vignette de chaîne : logo sur fond sombre, programme en cours et progression. */
+/** Reporte la teinte d'un logo (événement « logoinfo » de ui/logo.ts) sur son conteneur. */
+function applyTint(target: HTMLElement, listenOn: HTMLElement = target): void {
+  listenOn.addEventListener('logoinfo', (ev) => {
+    const info = (ev as CustomEvent<LogoInfo>).detail;
+    const tv = tintVar(info);
+    if (tv) {
+      target.style.setProperty('--tint', tv);
+      target.classList.add('tinted');
+    }
+  });
+}
+
 function channelTile(c: Channel, _queue: Channel[], attachHero: (el: HTMLElement, hi: HeroItem) => HTMLElement): HTMLElement {
   const cat = app.catalog!;
   const prog = h('div', { class: 'tile-prog', text: c.group });
   const bar = h('i');
+  // Fond teinté par la couleur du logo (plus de logo flouté en fond), logo net au centre.
+  const media = h(
+    'div',
+    { class: 'card-media' },
+    art(c.logo, c.name, 'contain'),
+    h('span', { class: 'tile-live' }, h('span', { class: 'live-dot' }), t('live')),
+    h('div', { class: 'tile-bar' }, bar),
+  );
+  applyTint(media);
   const el = h(
     'button',
     { type: 'button', class: 'card card-tile focusable', on: { click: () => void app.openChannel(c) } },
-    h(
-      'div',
-      { class: 'card-media' },
-      c.logo ? h('div', { class: 'tile-ambient', style: 'background-image:url("' + c.logo.replace(/"/g, '%22') + '")' }) : null,
-      art(c.logo, c.name, 'contain'),
-      h('span', { class: 'tile-live' }, h('span', { class: 'live-dot' }), t('live')),
-      h('div', { class: 'tile-bar' }, bar),
-    ),
+    media,
     h('div', { class: 'card-title' }, h('span', { class: 'num', text: channelNumber(c) }), c.name),
     prog,
   );

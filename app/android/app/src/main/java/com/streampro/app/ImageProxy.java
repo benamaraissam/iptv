@@ -66,7 +66,8 @@ final class ImageProxy {
         if (scaled != bmp) bmp.recycle();
         bmp = scaled;
       }
-      boolean alpha = bmp.hasAlpha() && "image/png".equals(bounds.outMimeType);
+      // Transparence (PNG, WebP…) conservée ; petits logos en PNG pour rester nets.
+      boolean alpha = bmp.hasAlpha() || width <= 320;
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       if (alpha) bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
       else bmp.compress(Bitmap.CompressFormat.JPEG, 82, out);
