@@ -1,5 +1,5 @@
 import type { AccountInfo, Channel, Details, Episode, Program, Show } from './types';
-import { backgroundTurn, noteApi, statusOf } from './apiguard';
+import { backgroundTurn, noteApi, statusOf, type ApiKind } from './apiguard';
 import { fetchJson } from './http';
 
 export interface XtreamCredentials {
@@ -66,13 +66,14 @@ function streamBase(c: XtreamCredentials, type: string): string {
  * suspendue quand le serveur sature (voir apiguard.ts).
  */
 async function get<T>(url: string, background = false): Promise<T> {
-  if (background) await backgroundTurn();
+  const kind: ApiKind = /action=get_(short_epg|simple_data_table)/.test(url) ? 'epg' : /action=get_(vod|series)_info/.test(url) ? 'details' : 'other';
+  if (background) await backgroundTurn(kind);
   try {
     const r = await fetchJson<T>(url);
-    noteApi(true);
+    noteApi(true, 0, kind);
     return r;
   } catch (e) {
-    noteApi(false, statusOf(e));
+    noteApi(false, statusOf(e), kind);
     throw new Error('Xtream : ' + (e as Error).message);
   }
 }

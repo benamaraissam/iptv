@@ -462,7 +462,7 @@ export class Catalog {
   prefetch(item: Channel | Show): void {
     if ('kind' in item && item.kind === 'live') return;
     // Même vignette que celle qu'affichera la fiche (voir bgArt) : préchargée, pas en double.
-    if (apiPaused() && !this.detailDone.has(item.id)) return;
+    if (apiPaused('details') && !this.detailDone.has(item.id)) return;
     this.details(item, true).then((d) => preloadImage(d.backdrop ? thumb(d.backdrop, 1280) : undefined), () => undefined);
   }
 
