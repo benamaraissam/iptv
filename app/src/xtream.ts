@@ -229,14 +229,36 @@ function namer(cats: XtreamCategory[]): (id: unknown) => string {
  * se chargent ensuite catégorie par catégorie (voir loadVodCategory / loadSeriesCategory) :
  * sur une box TV, la liste complète (plusieurs dizaines de Mo) bloquerait l'appareil.
  */
+/**
+ * Requête avec nouveaux essais : les panels limitent le nombre de requêtes (HTTP 429) ;
+ * une réponse manquée ne doit pas laisser une liste vide en cache.
+ */
+async function getRetry<T>(url: string, tries = 3): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await get<T>(url);
+    } catch (e) {
+      last = e;
+      await new Promise((r) => window.setTimeout(r, 1500 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
+/** Listes de catégories seules (réparation d'un cache où elles manquent). */
+export function loadCategories(c: XtreamCredentials, kind: 'vod' | 'series'): Promise<XtreamCategory[]> {
+  return getRetry<XCategory[]>(api(c, kind === 'vod' ? '&action=get_vod_categories' : '&action=get_series_categories')).then(categories);
+}
+
 export async function loadXtreamBase(c: XtreamCredentials): Promise<XtreamBase> {
   const account = await getAccount(c);
-  const [liveCats, live, vodCats, serCats] = await Promise.all([
-    get<XCategory[]>(api(c, '&action=get_live_categories')),
-    get<XStream[]>(api(c, '&action=get_live_streams')),
-    get<XCategory[]>(api(c, '&action=get_vod_categories')).catch(() => [] as XCategory[]),
-    get<XCategory[]>(api(c, '&action=get_series_categories')).catch(() => [] as XCategory[]),
-  ]);
+  // En séquence, pas en parallèle : les comptes limités à quelques requêtes par seconde
+  // refusaient l'une des listes (429), et les films disparaissaient du catalogue.
+  const liveCats = await getRetry<XCategory[]>(api(c, '&action=get_live_categories'));
+  const live = await getRetry<XStream[]>(api(c, '&action=get_live_streams'));
+  const vodCats = await getRetry<XCategory[]>(api(c, '&action=get_vod_categories'));
+  const serCats = await getRetry<XCategory[]>(api(c, '&action=get_series_categories'));
   return { account, live: mapLive(c, live, namer(categories(liveCats))), vodCats: categories(vodCats), serCats: categories(serCats) };
 }
 

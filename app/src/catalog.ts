@@ -153,6 +153,7 @@ export class Catalog {
       if (cached && cached.v === CACHE_VERSION) {
         const cat = timed('catalogue : préparation', () => new Catalog(playlist, cached));
         cat.startProgressive();
+        void cat.repairCategories(cached);
         return cat;
       }
     } else if (playlist.source.type === 'xtream') {
@@ -222,6 +223,47 @@ export class Catalog {
     }
     for (const key in this.catDone) if (key.charAt(0) === k) return Promise.resolve();
     return Promise.resolve();
+  }
+
+  /**
+   * Cache progressif où une liste de catégories manque (requête refusée par le panel au
+   * moment de la constitution du cache) : on la redemande et on complète le catalogue.
+   */
+  private async repairCategories(data: CacheData): Promise<void> {
+    const src = this.playlist.source;
+    if (!data.progressive || src.type !== 'xtream') return;
+    const missing: ('vod' | 'series')[] = [];
+    if (!(data.vodCats || []).length) missing.push('vod');
+    if (!(data.serCats || []).length) missing.push('series');
+    if (!missing.length) return;
+    let changed = false;
+    for (const kind of missing) {
+      try {
+        const cats = await xt.loadCategories(src, kind);
+        if (!cats.length) continue;
+        changed = true;
+        mark('catalogue : catégories ' + kind + ' retrouvées (' + cats.length + ')');
+        if (kind === 'vod') {
+          data.vodCats = cats;
+          this.vodGroups = cats.map((c) => c.name);
+        } else {
+          data.serCats = cats;
+          this.showGroups = cats.map((c) => c.name);
+        }
+        const k = kind === 'vod' ? 'm' : 's';
+        for (const cat of cats) {
+          this.catQueue.push({ kind: k, cat });
+          this.catDone[k + cat.id] = new Promise((r) => (this.catResolve[k + cat.id] = r));
+        }
+        this.loadState = { done: this.loadState.done, total: this.loadState.total + cats.length, complete: false };
+      } catch {
+        /* toujours refusé : on réessaiera au prochain lancement */
+      }
+    }
+    if (!changed) return;
+    await store.setCache(this.playlist.id, data);
+    this.notifyProgress();
+    this.pump();
   }
 
   private startProgressive(): void {
