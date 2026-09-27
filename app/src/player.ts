@@ -3,6 +3,7 @@ import { setHealth, setPlaybackActive } from './health';
 import { canTranscode, proxied, transcodedUrl } from './http';
 import { mark } from './diag';
 import { alternateContainer, isTsUrl } from './streams';
+import { createNativeMedia, hasNativePlayer, isNativeMedia, nativeSetAudio, nativeSetSubtitle } from './native-player';
 
 export interface Track {
   id: string;
@@ -29,7 +30,7 @@ export interface PlaybackStats {
   bufferSec: number;
   dropped?: number;
   rebuffers: number;
-  engine: 'hls.js' | 'mpegts.js' | 'natif';
+  engine: 'hls.js' | 'mpegts.js' | 'natif' | 'libVLC';
 }
 
 /**
@@ -182,7 +183,12 @@ export class Engine {
   private m: Partial<PlaybackStats> & { rebuffers: number } = { rebuffers: 0 };
 
   constructor() {
-    const v = document.createElement('video');
+    // Android / Fire TV : lecteur natif libVLC derrière un élément vidéo factice.
+    const v: HTMLVideoElement = hasNativePlayer ? createNativeMedia() : document.createElement('video');
+    if (hasNativePlayer) {
+      document.documentElement.classList.add('native-video');
+      v.addEventListener('nativetracks', () => this.onTracks());
+    }
     v.id = 'video';
     v.setAttribute('playsinline', '');
     v.setAttribute('webkit-playsinline', '');
@@ -244,6 +250,10 @@ export class Engine {
     // Les vérifications de chaînes s'arrêtent pendant la lecture (bande passante / connexions).
     setPlaybackActive(true);
     const v = this.video;
+    if (isNativeMedia(v)) {
+      v.__native.load(url, startAt);
+      return;
+    }
 
     const isHls = forceHls || /\.m3u8?(\?|$)/i.test(url);
     if (isHls) this.triedHls = true;
@@ -463,7 +473,7 @@ export class Engine {
     const q = (v as any).getVideoPlaybackQuality ? (v as any).getVideoPlaybackQuality() : null;
     const hls = this.hls;
     const level = hls && hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : null;
-    const engineName: PlaybackStats['engine'] = hls ? 'hls.js' : this.mpegts ? 'mpegts.js' : 'natif';
+    const engineName: PlaybackStats['engine'] = isNativeMedia(v) ? 'libVLC' : hls ? 'hls.js' : this.mpegts ? 'mpegts.js' : 'natif';
     return {
       startupMs: this.m.startupMs,
       waitingMs: this.t0 ? Date.now() - this.t0 : 0,
@@ -513,6 +523,11 @@ export class Engine {
   // ───────────── Pistes ─────────────
 
   audioTracks(): { list: Track[]; current: string } {
+    const nv = this.video;
+    if (isNativeMedia(nv)) {
+      const t = nv.__native.tracks;
+      return { list: t.audio.map((a) => ({ id: String(a.id), label: a.name })), current: String(t.audioCurrent) };
+    }
     if (this.hls) {
       return {
         list: this.hls.audioTracks.map((a, i) => ({ id: String(i), label: a.name || a.lang || 'Audio ' + (i + 1) })),
@@ -533,6 +548,11 @@ export class Engine {
 
   setAudio(id: string): void {
     const i = parseInt(id, 10);
+    if (isNativeMedia(this.video)) {
+      this.video.__native.tracks.audioCurrent = i;
+      nativeSetAudio(i);
+      return;
+    }
     if (this.hls) {
       this.hls.audioTrack = i;
       return;
@@ -542,6 +562,11 @@ export class Engine {
   }
 
   subtitleTracks(): { list: Track[]; current: string } {
+    const nv = this.video;
+    if (isNativeMedia(nv)) {
+      const t = nv.__native.tracks;
+      return { list: t.subs.map((a) => ({ id: String(a.id), label: a.name })), current: String(t.subCurrent) };
+    }
     if (this.hls) {
       return {
         list: this.hls.subtitleTracks.map((s, i) => ({ id: String(i), label: s.name || s.lang || 'Sub ' + (i + 1) })),
@@ -561,6 +586,11 @@ export class Engine {
 
   setSubtitle(id: string): void {
     const i = parseInt(id, 10);
+    if (isNativeMedia(this.video)) {
+      this.video.__native.tracks.subCurrent = i;
+      nativeSetSubtitle(i);
+      return;
+    }
     if (this.hls) {
       this.hls.subtitleTrack = i;
       this.hls.subtitleDisplay = i >= 0;

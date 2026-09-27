@@ -37,6 +37,7 @@ public class MainActivity extends BridgeActivity {
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    registerPlugin(NativePlayerPlugin.class);
     super.onCreate(savedInstanceState);
     tv = isTelevision();
     Bridge bridge = getBridge();

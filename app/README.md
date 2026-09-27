@@ -83,6 +83,14 @@ npm run cap:android   # build + sync + ouvre Android Studio
 Identifiant : `com.streampro.app`. Le manifeste autorise les flux HTTP et déclare
 la compatibilité **Android TV** (bannière `res/drawable/banner.png`).
 
+**Lecteur natif libVLC** (`NativePlayerPlugin.java`, `src/native-player.ts`) : sur Android et
+Fire TV, la vidéo n'est pas décodée par la WebView mais par libVLC (`org.videolan.android:libvlc-all`),
+comme dans IBO Pro ou TiviMate : MPEG-TS en direct, H.264 entrelacé 1080i, audio MPEG Layer II / AC-3,
+MKV multi-pistes, avec le décodage matériel de l'appareil. La surface vidéo est placée sous la WebView,
+rendue transparente ; côté web, le lecteur natif se présente comme un élément vidéo factice
+(`currentTime`, `paused`, événements `playing` / `timeupdate`…) pour que les écrans fonctionnent tels quels.
+Le premier build télécharge la bibliothèque (≈ 60 Mo par architecture).
+
 ## Fire TV / Android TV
 
 Sur une box TV (et tout appareil peu puissant), le catalogue Xtream se charge **catégorie par
