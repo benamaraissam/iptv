@@ -67,7 +67,27 @@ export function onHealth(fn: (url: string, s: Health) => void): () => void {
 }
 
 /** Met la vérification en file (3 en parallèle). `force` ignore le cache. */
+/**
+ * Serveur qui limite les requêtes (HTTP 429) : on suspend toute vérification automatique
+ * pendant un moment — insister ferait refuser la lecture elle-même.
+ */
+let rateLimitedUntil = 0;
+export function isRateLimited(): boolean {
+  return Date.now() < rateLimitedUntil;
+}
+
+/**
+ * Vérification automatique désactivée sur les comptes Xtream (souvent 1 connexion et
+ * requêtes limitées : sonder les chaînes fait refuser le flux qu'on veut regarder).
+ * Les vérifications manuelles (bouton) restent possibles.
+ */
+let autoChecks = true;
+export function setAutoChecks(on: boolean): void {
+  autoChecks = on;
+}
+
 export function check(url: string, force = false): void {
+  if (!force && (!autoChecks || isRateLimited())) return;
   const cur = getHealth(url);
   if (!force && cur !== 'unknown') return;
   if (cur === 'checking' || queue.indexOf(url) !== -1) return;
@@ -161,7 +181,11 @@ function xhrProbe(url: string): Promise<Health | 'blocked'> {
     const timer = window.setTimeout(() => finish('down'), TIMEOUT);
     xhr.onreadystatechange = () => {
       if (xhr.readyState === 2 && xhr.status) {
-        if (xhr.status >= 400) finish('down');
+        if (xhr.status === 429) {
+          rateLimitedUntil = Date.now() + 10 * 60000;
+          cancelPending();
+          finish('unknown');
+        } else if (xhr.status >= 400) finish('down');
         else if (!hls) finish('ok');
       } else if (xhr.readyState === 4 && hls && xhr.status) {
         finish(xhr.status < 400 && (xhr.responseText || '').indexOf('#EXT') !== -1 ? 'ok' : 'down');
