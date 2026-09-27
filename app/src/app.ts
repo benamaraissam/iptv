@@ -335,7 +335,10 @@ class AppCore {
   async openPlaylist(p: Playlist, force = false): Promise<boolean> {
     setLoading(true, t('loading'));
     try {
-      this.catalog = await Catalog.load(p, force);
+      this.catalog = await Catalog.load(p, force, (s) => {
+        const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+        setLoading(true, t('catalogLoading') + ' ' + pct + ' %');
+      });
       setPauseDuringPlayback(p.source.type === 'xtream');
       store.updateSettings({ activePlaylist: p.id });
       return true;

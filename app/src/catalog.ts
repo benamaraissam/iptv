@@ -145,25 +145,46 @@ export class Catalog {
     );
   }
 
-  static async load(playlist: Playlist, force = false): Promise<Catalog> {
+  /**
+   * Charge le catalogue en entier avant de rendre la main : à l'ajout d'une playlist (une
+   * fois, avec la progression affichée), puis à chaque lancement depuis le cache par
+   * catégorie. Les écrans n'ont ainsi jamais de chargement en cours.
+   */
+  static async load(playlist: Playlist, force = false, onProgress?: (s: LoadState) => void): Promise<Catalog> {
+    let cat: Catalog | null = null;
     if (!force) {
       mark('catalogue : lecture du cache');
       const cached = await store.getCache<CacheData>(playlist.id);
       mark('catalogue : cache lu');
       if (cached && cached.v === CACHE_VERSION) {
-        const cat = timed('catalogue : préparation', () => new Catalog(playlist, cached));
-        cat.startProgressive();
-        void cat.repairCategories(cached);
-        return cat;
+        cat = timed('catalogue : préparation', () => new Catalog(playlist, cached));
+        await cat.repairCategories(cached);
       }
     } else if (playlist.source.type === 'xtream') {
       await store.clearCategoryCache(playlist.id);
     }
-    const data = await Catalog.fetch(playlist);
-    await store.setCache(playlist.id, data);
-    const cat = new Catalog(playlist, data);
+    if (!cat) {
+      const data = await Catalog.fetch(playlist);
+      await store.setCache(playlist.id, data);
+      cat = new Catalog(playlist, data);
+    }
     cat.startProgressive();
+    await cat.whenComplete(onProgress);
     return cat;
+  }
+
+  /** Résolue quand toutes les catégories sont chargées (tout de suite si c'est déjà le cas). */
+  whenComplete(onProgress?: (s: LoadState) => void): Promise<void> {
+    if (this.loadState.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      const off = this.onProgress((s) => {
+        if (onProgress) onProgress(s);
+        if (s.complete) {
+          off();
+          resolve();
+        }
+      });
+    });
   }
 
   private static async fetch(p: Playlist): Promise<CacheData> {
@@ -263,7 +284,6 @@ export class Catalog {
     if (!changed) return;
     await store.setCache(this.playlist.id, data);
     this.notifyProgress();
-    this.pump();
   }
 
   private startProgressive(): void {
