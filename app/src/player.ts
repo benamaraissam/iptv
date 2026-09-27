@@ -2,6 +2,7 @@ import type Hls from 'hls.js';
 import { setHealth, setPlaybackActive } from './health';
 import { proxied } from './http';
 import { mark } from './diag';
+import { alternateContainer, isTsUrl } from './streams';
 
 export interface Track {
   id: string;
@@ -28,7 +29,7 @@ export interface PlaybackStats {
   bufferSec: number;
   dropped?: number;
   rebuffers: number;
-  engine: 'hls.js' | 'natif';
+  engine: 'hls.js' | 'mpegts.js' | 'natif';
 }
 
 /**
@@ -42,15 +43,20 @@ export type PlaybackErrorKind = 'network' | 'format' | 'codec' | 'denied' | 'oth
 
 const DENIED_STATUS: Record<number, true> = { 401: true, 403: true, 429: true, 458: true, 509: true };
 
+/** Vrai si l'appareil peut lire du MPEG-TS : nativement (TV) ou via mpegts.js (MSE). */
+export function canPlayTs(video: HTMLVideoElement): boolean {
+  if (video.canPlayType('video/mp2t') || video.canPlayType('video/MP2T')) return true;
+  return typeof (window as any).MediaSource !== 'undefined';
+}
+
 /**
  * Autre conteneur du même flux Xtream : le direct existe en HLS (.m3u8) et en MPEG-TS (.ts).
  * Retourne undefined si l'appareil ne sait pas lire l'autre forme.
  */
 export function alternateUrl(url: string, video: HTMLVideoElement): string | undefined {
-  const m = /^(.*\/live\/[^/]+\/[^/]+\/\d+)\.(m3u8|ts)(\?.*)?$/i.exec(url);
-  if (!m) return undefined;
-  if (m[2].toLowerCase() === 'ts') return m[1] + '.m3u8' + (m[3] || '');
-  return video.canPlayType('video/mp2t') || video.canPlayType('video/MP2T') ? m[1] + '.ts' + (m[3] || '') : undefined;
+  const alt = alternateContainer(url);
+  if (!alt) return undefined;
+  return isTsUrl(alt) && !canPlayTs(video) ? undefined : alt;
 }
 
 function codecUnsupported(codec?: string): boolean {
@@ -72,6 +78,8 @@ function codecUnsupported(codec?: string): boolean {
 export class Engine {
   readonly video: HTMLVideoElement;
   private hls: Hls | null = null;
+  /** Lecteur MPEG-TS (flux .ts sur navigateur / Android, qui ne les lisent pas nativement). */
+  private mpegts: any = null;
   private loadToken = 0;
   onError: (kind: PlaybackErrorKind, detail?: string) => void = () => undefined;
   onTracks: () => void = () => undefined;
@@ -143,6 +151,50 @@ export class Engine {
     const isHls = forceHls || /\.m3u8?(\?|$)/i.test(url);
     if (isHls) this.triedHls = true;
     const nativeHls = v.canPlayType('application/vnd.apple.mpegurl') !== '';
+
+    // MPEG-TS sur un moteur qui ne le lit pas nativement (Chrome, Android) : mpegts.js
+    // démultiplexe le flux en continu vers MSE.
+    if (!forceHls && isTsUrl(url) && !v.canPlayType('video/mp2t') && !v.canPlayType('video/MP2T')) {
+      const mod: any = await import('mpegts.js');
+      const M = mod.default || mod;
+      if (token !== this.loadToken) return;
+      if (M.isSupported()) {
+        this.triedHls = true;
+        const player = M.createPlayer(
+          { type: 'mpegts', isLive: true, url: proxied(url) },
+          {
+            enableWorker: false,
+            liveBufferLatencyChasing: true,
+            liveBufferLatencyMaxLatency: 4,
+            liveBufferLatencyMinRemain: 1,
+            autoCleanupSourceBuffer: true,
+            autoCleanupMaxBackwardDuration: 30,
+            autoCleanupMinBackwardDuration: 10,
+            reuseRedirectedURL: true,
+            lazyLoad: false,
+          },
+        );
+        this.mpegts = player;
+        player.on(M.Events.ERROR, (type: string, detail: string, info: any) => {
+          const status: number = (info && info.code) || 0;
+          if (type === M.ErrorTypes.NETWORK_ERROR) this.fail(DENIED_STATUS[status] ? 'denied' : 'network', 'HTTP ' + status + ' ' + detail);
+          else if (detail === M.ErrorDetails.MEDIA_CODEC_UNSUPPORTED) this.fail('codec', detail);
+          else if (type === M.ErrorTypes.MEDIA_ERROR) this.fail('format', detail);
+          else this.fail('other', detail);
+        });
+        player.on(M.Events.MEDIA_INFO, () => {
+          mark('lecteur : flux MPEG-TS reconnu');
+          this.onTracks();
+        });
+        player.on(M.Events.STATISTICS_INFO, (s: any) => {
+          if (s && s.speed) this.m.bandwidthKbps = Math.round(s.speed * 8);
+        });
+        player.attachMediaElement(v);
+        player.load();
+        this.play();
+        return;
+      }
+    }
     const seek = () => {
       if (startAt > 0) {
         try {
@@ -260,6 +312,7 @@ export class Engine {
     const q = (v as any).getVideoPlaybackQuality ? (v as any).getVideoPlaybackQuality() : null;
     const hls = this.hls;
     const level = hls && hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : null;
+    const engineName: PlaybackStats['engine'] = hls ? 'hls.js' : this.mpegts ? 'mpegts.js' : 'natif';
     return {
       startupMs: this.m.startupMs,
       waitingMs: this.t0 ? Date.now() - this.t0 : 0,
@@ -274,7 +327,7 @@ export class Engine {
       bufferSec: Math.round(buffer * 10) / 10,
       dropped: q ? q.droppedVideoFrames : undefined,
       rebuffers: this.m.rebuffers,
-      engine: hls ? 'hls.js' : 'natif',
+      engine: engineName,
     };
   }
 
@@ -284,6 +337,17 @@ export class Engine {
     if (this.hls) {
       this.hls.destroy();
       this.hls = null;
+    }
+    if (this.mpegts) {
+      try {
+        this.mpegts.pause();
+        this.mpegts.unload();
+        this.mpegts.detachMediaElement();
+        this.mpegts.destroy();
+      } catch {
+        /* ignore */
+      }
+      this.mpegts = null;
     }
     const v = this.video;
     v.pause();

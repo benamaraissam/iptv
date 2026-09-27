@@ -595,8 +595,9 @@ export function player(params: Params): Screen {
     // 1 s, 2 s, 4 s, 8 s ; à partir du 3e essai on se contente de la qualité la plus basse.
     const delay = 1000 * Math.pow(2, attempts - 1);
     engine.degraded = attempts >= 3;
-    // Format illisible : un essai sur deux avec l'autre conteneur (.m3u8 ↔ .ts) s'il existe.
-    const alt = kind === 'format' && attempts % 2 === 0 ? alternateUrl(item.url, video) : undefined;
+    // Direct Xtream : dès le premier nouvel essai, l'autre conteneur (.m3u8 ↔ .ts) — beaucoup
+    // de chaînes n'existent que dans l'un des deux ; puis on alterne.
+    const alt = isLive && attempts % 2 === 1 ? alternateUrl(item.url, video) : undefined;
     reconnect.textContent = t('reconnecting') + ' ' + attempts + '/' + MAX_ATTEMPTS + (engine.degraded ? ' · ' + t('lowQualityMode') : '');
     reconnect.classList.remove('hidden');
     errorBox.classList.add('hidden');

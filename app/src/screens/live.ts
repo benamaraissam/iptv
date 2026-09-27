@@ -12,6 +12,7 @@ import { formatTime, t } from '../i18n';
 import { brandClock, categoryButton, channelNumber, imageFirst } from './common';
 import { mark, timed } from '../diag';
 import { lowPower } from '../platform';
+import { alternateUrl } from '../player';
 
 /**
  * 9 / 13. TV en direct : liste compacte de chaînes + moniteur d'aperçu.
@@ -147,8 +148,18 @@ export function live(params: { group?: string; channelId?: string }): Screen {
     monLabel.appendChild(h('span', { class: 'badge live-badge', text: t('live') }));
     monLabel.appendChild(h('span', { text: channelNumber(ch) + '  ' + ch.name }));
     engine.onTracks = () => undefined;
+    let triedAlt = false;
     engine.onError = (kind) => {
       if (preview !== ch) return;
+      // Chaîne absente dans ce conteneur : on essaie l'autre (.m3u8 ↔ .ts) avant d'abandonner.
+      if (!triedAlt && kind !== 'denied' && kind !== 'codec') {
+        triedAlt = true;
+        const alt = alternateUrl(ch.url, engine.video);
+        if (alt) {
+          void engine.load(alt);
+          return;
+        }
+      }
       monSpinner.classList.add('hidden');
       clear(monError);
       monError.appendChild(icon('offline'));

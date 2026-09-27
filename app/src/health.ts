@@ -1,6 +1,7 @@
 import { CapacitorHttp } from '@capacitor/core';
 import { isNative, lowPower, platform } from './platform';
-import { proxied } from './http';
+import { hasNativeProxy, proxied } from './http';
+import { alternateContainer } from './streams';
 import { mark } from './diag';
 
 /**
@@ -104,7 +105,7 @@ function pump(): void {
 const isHls = (url: string) => /\.m3u8?(\?|$)/i.test(url);
 
 function probe(url: string): Promise<Health> {
-  if (isNative) return probeNative(url);
+  if (isNative && !hasNativeProxy) return probeNative(url);
   return probeXhr(url);
 }
 
@@ -128,7 +129,13 @@ async function probeNative(url: string): Promise<Health> {
  *   (la lecture média n'est pas soumise au CORS).
  */
 async function probeXhr(url: string): Promise<Health> {
-  const r = await xhrProbe(url);
+  let r = await xhrProbe(url);
+  // HLS refusé (chaîne servie seulement en MPEG-TS chez ce fournisseur) : on sonde le .ts,
+  // que le lecteur saura utiliser à la place.
+  if (r === 'down' && isHls(url)) {
+    const alt = alternateContainer(url);
+    if (alt) r = await xhrProbe(alt);
+  }
   if (r !== 'blocked') return r;
   if (isHls(url) || platform !== 'web') return 'down';
   return probeMedia(url);
