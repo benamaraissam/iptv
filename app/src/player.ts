@@ -257,6 +257,15 @@ export class Engine {
         });
         player.attachMediaElement(v);
         player.load();
+        // Audio MPEG (Layer II/III) : mpegts.js le pousse en flux brut « audio/mpeg », que Chrome
+        // refuse de combiner avec la vidéo « video/mp4 » (erreur média dès le premier segment).
+        // Emballé en fMP4 (audio/mp4;codecs=mp3), Chrome le décode, Layer II compris.
+        try {
+          const remuxer = player._transmuxer && player._transmuxer._controller && player._transmuxer._controller._remuxer;
+          if (remuxer && '_mp3UseMpegAudio' in remuxer) remuxer._mp3UseMpegAudio = false;
+        } catch {
+          /* structure interne différente : on garde le comportement par défaut */
+        }
         this.play();
         return;
       }
