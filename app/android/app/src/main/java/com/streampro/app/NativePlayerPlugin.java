@@ -78,6 +78,7 @@ public class NativePlayerPlugin extends Plugin {
     layout = new VLCVideoLayout(getContext());
     layout.setBackgroundColor(Color.BLACK);
     layout.setVisibility(View.GONE);
+    layout.setZ(1f);
   }
 
   /** Surface ajoutée sous la WebView, qui devient transparente pour la laisser voir. */
@@ -93,7 +94,10 @@ public class NativePlayerPlugin extends Plugin {
     ViewGroup.MarginLayoutParams lp =
         parent instanceof CoordinatorLayout ? new CoordinatorLayout.LayoutParams(1, 1) : new FrameLayout.LayoutParams(1, 1);
     parent.addView(layout, 0, lp);
-    player.attachViews(layout, null, false, false);
+    // TextureView (dernier paramètre) et non SurfaceView : une SurfaceView perce un trou sous
+    // toute la fenêtre, le fond de la vue parente (couleur de l'application) la recouvrirait.
+    // La TextureView se compose comme une vue ordinaire : au-dessus du fond, sous la WebView.
+    player.attachViews(layout, null, false, true);
     player.setVideoScale(MediaPlayer.ScaleType.SURFACE_BEST_FIT);
     attached = true;
   }
