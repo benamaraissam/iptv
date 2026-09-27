@@ -42,6 +42,9 @@ public class NativePlayerPlugin extends Plugin {
   private int height;
   private float buffering;
   private boolean playing;
+  /** Lecture arrêtée par le passage en arrière-plan, et position où la reprendre (ms). */
+  private boolean stoppedInBackground;
+  private long resumeAt;
 
   /** Dès le démarrage : la WebView est transparente et le fond de fenêtre prend la couleur de l'application. */
   @Override
@@ -204,6 +207,8 @@ public class NativePlayerPlugin extends Plugin {
                 buffering = 0;
                 playing = false;
                 player.stop();
+                stoppedInBackground = false;
+                resumeAt = 0;
                 Media media = new Media(libVLC, android.net.Uri.parse(url));
                 media.setHWDecoderEnabled(true, false);
                 media.addOption(":http-user-agent=VLC/3.0.20 LibVLC/3.0.20");
@@ -225,7 +230,12 @@ public class NativePlayerPlugin extends Plugin {
     getActivity()
         .runOnUiThread(
             () -> {
-              if (player != null) player.play();
+              if (player != null) {
+                player.play();
+                // Reprise après un arrêt en arrière-plan : même position (film / épisode).
+                if (stoppedInBackground && resumeAt > 0) player.setTime(resumeAt);
+                stoppedInBackground = false;
+              }
               call.resolve();
             });
   }
@@ -445,7 +455,17 @@ public class NativePlayerPlugin extends Plugin {
   @Override
   protected void handleOnPause() {
     super.handleOnPause();
-    if (player != null && player.isPlaying()) player.pause();
+    // Application en arrière-plan (touche Accueil, veille) : on ARRÊTE la lecture au lieu
+    // de la mettre en pause. Un flux en pause garde sa connexion ouverte chez le
+    // fournisseur, et les comptes à une seule connexion refusent alors tout autre flux
+    // (HTTP 458). La position est gardée pour reprendre au même endroit.
+    if (player != null && player.getMedia() != null && (player.isPlaying() || playing)) {
+      resumeAt = live ? 0 : player.getTime();
+      stoppedInBackground = true;
+      player.stop();
+      playing = false;
+      notifyListeners("state", state("paused"));
+    }
   }
 
   @Override
