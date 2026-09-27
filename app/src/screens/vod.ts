@@ -159,18 +159,16 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
   const progress = catalogProgress();
   // Fin du chargement progressif : la vue « Toutes les catégories » se complète.
   let lastProgressRender = Date.now();
-  const offProgress = cat.loadState.complete
-    ? () => undefined
-    : cat.onProgress((s) => {
-        // « Toutes les catégories » : la grille se complète au fil des catégories reçues
-        // (au plus toutes les 3 s, et dès qu'elle était vide), puis une dernière fois à la fin.
-        const now = Date.now();
-        const empty = !grid.querySelector('.card');
-        if (!s.complete && !(group === null && (empty || now - lastProgressRender > 3000))) return;
-        lastProgressRender = now;
-        catBtn.set(group);
-        if (!group) render();
-      });
+  const offProgress = cat.onProgress((s) => {
+    // « Toutes les catégories » : la grille se complète au fil des catégories reçues
+    // (au plus toutes les 3 s, et dès qu'elle était vide), puis une dernière fois à la fin.
+    const now = Date.now();
+    const empty = !grid.querySelector('.card');
+    if (!s.complete && !(group === null && (empty || now - lastProgressRender > 3000))) return;
+    lastProgressRender = now;
+    catBtn.set(group);
+    if (!group) render();
+  });
   render();
   return {
     toolbar: h('div', { class: 'vod-tools' }, h('div', { class: 'live-filterbar vod-filterbar' }, catBtn.el, searchEl, sorts.length > 1 ? sortEl : null), langEl, progress.el),

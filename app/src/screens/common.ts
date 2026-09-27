@@ -291,7 +291,8 @@ function withShowPosters(list: store.HistoryEntry[]): store.HistoryEntry[] {
  */
 export function catalogProgress(): { el: HTMLElement | null; off: () => void } {
   const cat = app.catalog!;
-  if (cat.loadState.complete) return { el: null, off: () => undefined };
+  // Toujours créée (cachée si le catalogue est complet) : un chargement peut reprendre
+  // plus tard, par exemple quand une liste de catégories manquante est retrouvée.
   const label = h('span');
   const bar = h('i');
   const el = h('div', { class: 'catalog-progress' }, h('div', { class: 'cp-bar' }, bar), label);
@@ -300,6 +301,7 @@ export function catalogProgress(): { el: HTMLElement | null; off: () => void } {
       el.classList.add('hidden');
       return;
     }
+    el.classList.remove('hidden');
     const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
     label.textContent = t('catalogLoading') + ' ' + pct + ' %';
     bar.style.width = pct + '%';

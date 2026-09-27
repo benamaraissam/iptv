@@ -446,18 +446,16 @@ export function home(): Screen {
   // reconstruit une fois les premières catégories arrivées, puis à la fin.
   const progress = catalogProgress();
   if (progress.el) el.appendChild(progress.el);
-  const offProgress = cat.loadState.complete
-    ? () => undefined
-    : cat.onProgress((s) => {
-        let st = refreshDone.get(cat);
-        if (!st) refreshDone.set(cat, (st = { first: false, complete: false }));
-        const first = !st.first && s.done >= Math.min(10, s.total);
-        const last = s.complete && !st.complete;
-        if (!first && !last) return;
-        if (first) st.first = true;
-        if (last) st.complete = true;
-        if (app.current === 'home' && !hasModal()) app.replace('home');
-      });
+  const offProgress = cat.onProgress((s) => {
+    let st = refreshDone.get(cat);
+    if (!st) refreshDone.set(cat, (st = { first: false, complete: false }));
+    const first = !st.first && s.done >= Math.min(10, s.total);
+    const last = s.complete && !st.complete;
+    if (!first && !last) return;
+    if (first) st.first = true;
+    if (last) st.complete = true;
+    if (app.current === 'home' && !hasModal()) app.replace('home');
+  });
 
   return {
     el,
