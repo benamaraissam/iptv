@@ -14,7 +14,7 @@ import { focusEl } from '../navigation';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatDuration, formatTime, t } from '../i18n';
-import { alternateUrl } from '../player';
+import { alternateUrl, learnContainer, preferredLiveUrl } from '../player';
 import type { PlaybackErrorKind } from '../player';
 
 interface Params {
@@ -519,7 +519,7 @@ export function player(params: Params): Screen {
   const onEnded = () => {
     // Un direct ne « se termine » pas : coupure du flux → on se reconnecte.
     if (isLive) {
-      engine.load(item.url);
+      engine.load(preferredLiveUrl(item.url, video));
       return;
     }
     saveProgress();
@@ -618,6 +618,7 @@ export function player(params: Params): Screen {
   // La lecture tourne à nouveau : après 20 s stables, on repart avec un compteur neuf.
   const onStable = () => {
     reconnect.classList.add('hidden');
+    if (isLive) learnContainer(item.url, engine.currentUrl);
     window.clearTimeout(stableTimer);
     stableTimer = window.setTimeout(() => {
       attempts = 0;
@@ -777,7 +778,7 @@ export function player(params: Params): Screen {
     if (!force && isLive && engine.isPlaying(item.url)) {
       el.classList.remove('buffering');
       engine.play();
-    } else engine.load(item.url, startAt);
+    } else engine.load(isLive ? preferredLiveUrl(item.url, video) : item.url, startAt);
     updatePlay();
     updateTime();
     renderExtras();

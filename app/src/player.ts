@@ -59,6 +59,49 @@ export function alternateUrl(url: string, video: HTMLVideoElement): string | und
   return isTsUrl(alt) && !canPlayTs(video) ? undefined : alt;
 }
 
+/**
+ * Mémoire par serveur : chez certains fournisseurs, le manifeste HLS répond mais les
+ * segments sont refusés (403) et seul le MPEG-TS passe. Une fois constaté, on démarre
+ * directement en .ts pour toutes les chaînes de ce serveur (pas d'échec ni d'attente).
+ */
+const TS_HOSTS_KEY = 'sp.tsHosts';
+const hostOf = (url: string) => {
+  const m = /^[a-z]+:\/\/([^/]+)/i.exec(url);
+  return m ? m[1].toLowerCase() : '';
+};
+function tsHosts(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(TS_HOSTS_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function setTsHost(host: string, on: boolean): void {
+  if (!host) return;
+  const list = tsHosts().filter((x) => x !== host);
+  if (on) list.push(host);
+  try {
+    localStorage.setItem(TS_HOSTS_KEY, JSON.stringify(list.slice(-20)));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Lien à utiliser au démarrage d'un direct : le .ts si ce serveur l'exige, sinon le lien tel quel. */
+export function preferredLiveUrl(url: string, video: HTMLVideoElement): string {
+  if (isTsUrl(url) || tsHosts().indexOf(hostOf(url)) === -1) return url;
+  const alt = alternateUrl(url, video);
+  return alt && isTsUrl(alt) ? alt : url;
+}
+
+/** La lecture a démarré sur `played` alors qu'on avait demandé `requested` : on retient le conteneur qui marche. */
+export function learnContainer(requested: string, played: string | null): void {
+  if (!played || played === requested) return;
+  if (alternateContainer(requested) !== played) return;
+  setTsHost(hostOf(requested), isTsUrl(played));
+}
+
 /** Import dynamique borné : un module qui n'arrive pas (serveur de dev en cours de rechargement) ne bloque pas le lecteur. */
 function importWithTimeout<T>(load: () => Promise<T>, name: string, ms = 15000): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -386,7 +429,9 @@ export class Engine {
 
   /** Vrai si ce flux est déjà chargé et sans erreur. */
   isPlaying(url: string): boolean {
-    return this.currentUrl === url && !this.video.error;
+    if (this.video.error || !this.currentUrl) return false;
+    // Le même direct dans l'autre conteneur (.m3u8 ↔ .ts) compte comme le même flux.
+    return this.currentUrl === url || this.currentUrl === alternateContainer(url);
   }
 
   stats(): PlaybackStats {

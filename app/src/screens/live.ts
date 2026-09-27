@@ -11,7 +11,7 @@ import * as store from '../storage';
 import { formatTime, t } from '../i18n';
 import { brandClock, categoryButton, channelNumber, imageFirst } from './common';
 import { mark, timed } from '../diag';
-import { alternateUrl } from '../player';
+import { alternateUrl, learnContainer, preferredLiveUrl } from '../player';
 
 /**
  * 9 / 13. TV en direct : liste compacte de chaînes + moniteur d'aperçu.
@@ -72,6 +72,7 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   const onPlaying = () => {
     monSpinner.classList.add('hidden');
     monError.classList.add('hidden');
+    if (preview) learnContainer(preview.url, engine.currentUrl);
   };
   engine.video.addEventListener('waiting', onWaiting);
   engine.video.addEventListener('playing', onPlaying);
@@ -166,7 +167,7 @@ export function live(params: { group?: string; channelId?: string }): Screen {
     };
     if (!engine.isPlaying(ch.url)) {
       engine.quality = store.getSettings().quality;
-      engine.load(ch.url);
+      engine.load(preferredLiveUrl(ch.url, engine.video));
     } else engine.play();
     store.recordHistory(pid, channelPlayable(ch), 0, 0);
     markPlaying();
