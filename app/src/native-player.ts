@@ -101,6 +101,8 @@ export function createNativeMedia(): NativeMedia {
     height: 0,
     metadataSent: false,
     firstFrameSent: false,
+    /** Surface cachée (erreur, fin) pour laisser voir le message affiché par la page. */
+    hidden: false,
   };
   const fire = (type: string) => {
     try {
@@ -179,6 +181,7 @@ export function createNativeMedia(): NativeMedia {
     st.width = st.height = 0;
     st.metadataSent = false;
     st.firstFrameSent = false;
+    st.hidden = false;
     tracks.audio = [];
     tracks.subs = [];
     tracks.audioCurrent = tracks.subCurrent = -1;
@@ -205,7 +208,7 @@ export function createNativeMedia(): NativeMedia {
   // ── Position de la surface native : celle de cet élément dans la page ──
   let last = '';
   const updateBounds = (force = false) => {
-    let visible = !!st.url && el.isConnected;
+    let visible = !!st.url && !st.hidden && el.isConnected;
     let x = 0;
     let y = 0;
     let w = 0;
@@ -225,7 +228,7 @@ export function createNativeMedia(): NativeMedia {
   };
   window.setInterval(() => {
     if (st.url || last !== 'hidden') updateBounds();
-  }, 250);
+  }, 120);
   window.addEventListener('resize', () => updateBounds());
 
   // ── Événements du lecteur natif → événements « vidéo » ──
@@ -284,10 +287,14 @@ export function createNativeMedia(): NativeMedia {
       case 'ended':
         st.paused = true;
         st.ended = true;
+        st.hidden = true;
+        updateBounds();
         fire('ended');
         break;
       case 'error':
         st.paused = true;
+        st.hidden = true;
+        updateBounds();
         st.error = { code: 2, message: 'libVLC : flux illisible ou injoignable' };
         fire('error');
         break;

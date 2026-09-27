@@ -348,6 +348,7 @@ export function player(params: Params): Screen {
   const closeMenu = () => {
     if (!menuOpen) return;
     menuOpen = false;
+    el.classList.remove('menu-open');
     menu.classList.add('hidden');
     clear(menu);
     if (menu.contains(document.activeElement) || !el.contains(document.activeElement)) focusEl(extras.querySelector<HTMLElement>('.pl-extra') || playBtn);
@@ -387,6 +388,7 @@ export function player(params: Params): Screen {
     }
     menu.classList.remove('hidden');
     menuOpen = true;
+    el.classList.add('menu-open');
     showOverlay(true);
     const target = first || menu.querySelector<HTMLElement>('.pl-menu-opt');
     if (target) {
@@ -561,6 +563,7 @@ export function player(params: Params): Screen {
   const showError = (kind: PlaybackErrorKind, detail?: string) => {
     window.clearTimeout(recoverTimer);
     reconnect.classList.add('hidden');
+    el.classList.remove('reconnecting');
     el.classList.remove('buffering');
     clear(errorBox);
     errorBox.appendChild(icon('offline'));
@@ -603,6 +606,7 @@ export function player(params: Params): Screen {
     const alt = isLive && attempts % 2 === 1 ? alternateUrl(item.url, video) : undefined;
     reconnect.textContent = t('reconnecting') + ' ' + attempts + '/' + MAX_ATTEMPTS + (engine.degraded ? ' · ' + t('lowQualityMode') : '');
     reconnect.classList.remove('hidden');
+    el.classList.add('reconnecting');
     errorBox.classList.add('hidden');
     el.classList.add('buffering');
     recoverTimer = window.setTimeout(() => {
@@ -613,14 +617,17 @@ export function player(params: Params): Screen {
   engine.onAudioDropped = () => {
     reconnect.textContent = t('audioDropped');
     reconnect.classList.remove('hidden');
+    el.classList.add('reconnecting');
     window.setTimeout(() => {
       if (engine.audioDropped) reconnect.classList.add('hidden');
+    el.classList.remove('reconnecting');
     }, 8000);
   };
 
   // La lecture tourne à nouveau : après 20 s stables, on repart avec un compteur neuf.
   const onStable = () => {
     reconnect.classList.add('hidden');
+    el.classList.remove('reconnecting');
     if (isLive) learnContainer(item.url, engine.currentUrl);
     window.clearTimeout(stableTimer);
     stableTimer = window.setTimeout(() => {
@@ -735,6 +742,7 @@ export function player(params: Params): Screen {
     window.clearTimeout(recoverTimer);
     errorBox.classList.add('hidden');
     reconnect.classList.add('hidden');
+    el.classList.remove('reconnecting');
     if (menuOpen) closeMenu();
     el.classList.add('buffering');
     store.recordHistory(pid, item, 0, 0);
@@ -776,6 +784,7 @@ export function player(params: Params): Screen {
     userPaused = false;
     errorBox.classList.add('hidden');
     reconnect.classList.add('hidden');
+    el.classList.remove('reconnecting');
     window.clearTimeout(recoverTimer);
     el.classList.add('buffering');
     let startAt = 0;

@@ -1525,11 +1525,47 @@ html.kbd .epg-prog:focus {
 /* ─── Lecteur natif (Android / Fire TV, libVLC) : la surface vidéo est SOUS la WebView.
    La page devient transparente là où la vidéo doit apparaître ; le fond de fenêtre Android
    reprend la couleur de l'application. ─── */
-html.native-video.native-playing body,
-html.native-video.native-playing .player,
-html.native-video.native-playing #video,
-html.native-video.native-playing .monitor-screen {
-  background: transparent !important;
+/* La surface native est composée au-dessus de la page (la WebView d'Amazon reste opaque) :
+   l'élément #video ne sert qu'à positionner la vidéo, et il laisse la place aux contrôles,
+   au menu, à la liste des chaînes et aux messages quand ils sont visibles. */
+html.native-video .player #video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  height: auto;
+  -webkit-transition: none;
+  transition: none;
+}
+html.native-video .player.show-ui #video {
+  top: 5.2rem;
+  bottom: 7.6rem;
+}
+html.native-video .player.reconnecting #video {
+  top: 4.2rem;
+}
+html.native-video .player.menu-open #video {
+  right: 50%;
+  bottom: 55%;
+}
+html.native-video .player.side-open #video {
+  left: 33rem;
+}
+@media (max-width: 40rem) {
+  html.native-video .player.side-open #video {
+    left: 82%;
+  }
+}
+html.native-video .pl-spinner {
+  top: 1.2rem;
+  left: auto;
+  right: 1.2rem;
+  margin: 0;
+}
+html.native-video .pl-overlay {
+  background: none;
 }
 html.native-video .native-video {
   display: block;

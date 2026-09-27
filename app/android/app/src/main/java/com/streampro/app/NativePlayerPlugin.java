@@ -102,6 +102,11 @@ public class NativePlayerPlugin extends Plugin {
     // apparaît là où la page, au-dessus, est transparente.
     player.attachViews(layout, null, false, false);
     player.setVideoScale(MediaPlayer.ScaleType.SURFACE_BEST_FIT);
+    // La WebView d'Amazon (Fire OS) reste opaque quoi qu'on fasse : la vidéo est donc
+    // composée AU-DESSUS de la page. Côté web, la zone vidéo se réduit quand les contrôles,
+    // le menu ou la liste des chaînes s'affichent (styles.css, html.native-video).
+    android.view.SurfaceView sv = findSurface(layout);
+    if (sv != null) sv.setZOrderOnTop(true);
     attached = true;
   }
 
