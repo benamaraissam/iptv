@@ -1,6 +1,6 @@
 import type Hls from 'hls.js';
 import { setHealth, setPlaybackActive } from './health';
-import { proxied } from './http';
+import { canTranscode, proxied, transcodedUrl } from './http';
 import { mark } from './diag';
 import { alternateContainer, isTsUrl } from './streams';
 
@@ -80,18 +80,18 @@ function importWithTimeout<T>(load: () => Promise<T>, name: string, ms = 15000):
  * Erreur média juste après l'ouverture d'un flux TS dont l'audio est déclaré « mp3 » :
  * c'est presque toujours du MPEG-1 Layer II, que les navigateurs ne décodent pas.
  */
-function audioLooksUndecodable(v: HTMLVideoElement, player: any): boolean {
+function audioLooksUndecodable(v: HTMLVideoElement, _player: any): boolean {
   const err = v.error;
   if (!err) return false;
   const msg = String(err.message || '');
-  if (/audio/i.test(msg)) return true;
-  try {
-    const info = player.mediaInfo;
-    if (info && info.hasAudio && /mp3|mpeg/i.test(String(info.audioCodec || ''))) return true;
-  } catch {
-    /* ignore */
-  }
-  return err.code === 3 && v.videoWidth === 0;
+  if (/video (?:packet|frame|decoder)/i.test(msg)) return false;
+  return /audio/i.test(msg);
+}
+
+/** Erreur du décodeur vidéo (Chrome : « PIPELINE_ERROR_DECODE … video packet ») : H.264 entrelacé, HEVC… */
+function videoLooksUndecodable(v: HTMLVideoElement): boolean {
+  const err = v.error;
+  return !!err && err.code === 3 && /DECODE|video (?:packet|frame|decoder)/i.test(String(err.message || ''));
 }
 
 function codecUnsupported(codec?: string): boolean {
@@ -121,6 +121,8 @@ export class Engine {
    */
   private videoOnlyUrl: string | null = null;
   audioDropped = false;
+  /** Flux relu via le désentrelacement du proxy de développement (Chrome ne lit pas le 1080i). */
+  private transcodedFor: string | null = null;
   onAudioDropped: () => void = () => undefined;
   private loadToken = 0;
   onError: (kind: PlaybackErrorKind, detail?: string) => void = () => undefined;
@@ -238,7 +240,14 @@ export class Engine {
         player.on(M.Events.ERROR, (type: string, detail: string, info: any) => {
           const status: number = (info && info.code) || 0;
           if (type === M.ErrorTypes.NETWORK_ERROR) this.fail(DENIED_STATUS[status] ? 'denied' : 'network', 'HTTP ' + status + ' ' + detail);
-          else if (type === M.ErrorTypes.MEDIA_ERROR && !this.audioDropped && this.videoOnlyUrl !== url && audioLooksUndecodable(v, player)) {
+          else if (type === M.ErrorTypes.MEDIA_ERROR && videoLooksUndecodable(v)) {
+            if (canTranscode && this.transcodedFor !== url && url.indexOf('/__transcode?') !== 0) {
+              // Chrome de développement : on relit le flux désentrelacé par le proxy (ffmpeg).
+              this.errors.push('vidéo non décodable (' + String(v.error && v.error.message) + ') → désentrelacement par le proxy');
+              this.transcodedFor = url;
+              void this.load(transcodedUrl(url), startAt);
+            } else this.fail('codec', 'vidéo : ' + detail);
+          } else if (type === M.ErrorTypes.MEDIA_ERROR && !this.audioDropped && this.videoOnlyUrl !== url && audioLooksUndecodable(v, player)) {
             // Le décodeur a rejeté l'audio (Layer II…) : on repart sans la piste son.
             this.errors.push('audio non décodable (' + detail + ') → lecture image seule');
             this.videoOnlyUrl = url;
@@ -257,27 +266,6 @@ export class Engine {
         });
         player.attachMediaElement(v);
         player.load();
-        // Audio MPEG (Layer II/III) : mpegts.js le pousse en flux brut « audio/mpeg », que Chrome
-        // refuse de combiner avec la vidéo « video/mp4 » (erreur média dès le premier segment).
-        // Emballé en fMP4 (audio/mp4;codecs=mp3), Chrome le décode, Layer II compris.
-        // Le remuxeur n'existe qu'après « sourceopen » (asynchrone) : on le guette quelques ms,
-        // bien avant l'arrivée du premier segment audio.
-        const started = Date.now();
-        const flipMp3 = () => {
-          if (this.mpegts !== player) return;
-          try {
-            const remuxer = player._transmuxer && player._transmuxer._controller && player._transmuxer._controller._remuxer;
-            if (remuxer && '_mp3UseMpegAudio' in remuxer) {
-              remuxer._mp3UseMpegAudio = false;
-              mark('lecteur : audio MPEG → fMP4');
-              return;
-            }
-          } catch {
-            return;
-          }
-          if (Date.now() - started < 3000) window.setTimeout(flipMp3, 5);
-        };
-        flipMp3();
         this.play();
         return;
       }

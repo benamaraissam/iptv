@@ -17,6 +17,13 @@ const useProxy =
   hasNativeProxy ||
   (platform === 'web' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol) && /^(localhost|127\.|192\.168\.|10\.|\[?::1)/.test(location.hostname));
 
+/** Développement dans Chrome : le proxy peut désentrelacer un flux (ffmpeg) que le navigateur ne décode pas. */
+export const canTranscode = platform === 'web' && useProxy;
+
+export function transcodedUrl(url: string): string {
+  return '/__transcode?url=' + encodeURIComponent(url) + '&ext=.ts';
+}
+
 export function proxied(url: string): string {
   if (!useProxy || !/^https?:\/\//i.test(url) || url.indexOf(location.origin) === 0) return url;
   return '/__proxy?url=' + encodeURIComponent(url);

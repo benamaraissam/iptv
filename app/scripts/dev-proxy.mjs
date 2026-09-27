@@ -6,12 +6,15 @@
  * iOS, Tizen et webOS n'ont pas cette restriction et n'utilisent pas ce proxy.
  *
  *   GET /__proxy?url=<URL encodée>
+ *   GET /__transcode?url=<URL encodée>   → même flux désentrelacé par ffmpeg (H.264 entrelacé,
+ *                                          que Chrome ne décode pas) ; nécessite ffmpeg dans le PATH.
  *
  * - suit les redirections (fréquentes sur les flux Xtream) ;
  * - réécrit les playlists HLS pour que leurs liens relatifs restent valides ;
  * - s'identifie comme VLC (certains serveurs refusent les navigateurs).
  */
 import http from 'node:http';
+import { spawn } from 'node:child_process';
 import https from 'node:https';
 
 const UA = 'VLC/3.0.20 LibVLC/3.0.20';
@@ -95,13 +98,68 @@ function forward(target, req, res, hops) {
   res.on('close', () => up.destroy());
 }
 
+function transcode(target, req, res) {
+  const args = [
+    '-hide_banner', '-loglevel', 'error', '-nostdin',
+    '-user_agent', UA, '-fflags', '+genpts+discardcorrupt', '-i', target,
+    '-vf', 'bwdif=mode=send_frame',
+    '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-crf', '23', '-g', '50',
+    '-c:a', 'aac', '-b:a', '128k', '-ac', '2',
+    '-f', 'mpegts', 'pipe:1',
+  ];
+  let ff;
+  try {
+    ff = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    res.statusCode = 501;
+    return res.end('ffmpeg indisponible : ' + e.message);
+  }
+  let started = false;
+  ff.on('error', (e) => {
+    if (res.headersSent) return res.end();
+    res.statusCode = 501;
+    res.end('ffmpeg indisponible (brew install ffmpeg) : ' + e.message);
+  });
+  ff.stderr.on('data', (d) => process.stderr.write('[ffmpeg] ' + d));
+  ff.stdout.on('data', (chunk) => {
+    if (!started) {
+      started = true;
+      res.statusCode = 200;
+      res.setHeader('content-type', 'video/mp2t');
+      res.setHeader('access-control-allow-origin', '*');
+      res.setHeader('cache-control', 'no-store');
+    }
+    res.write(chunk);
+  });
+  ff.stdout.on('end', () => res.end());
+  ff.on('close', (code) => {
+    if (!started && !res.headersSent) {
+      res.statusCode = 502;
+      res.end('ffmpeg : aucune donnée (code ' + code + ')');
+    }
+  });
+  const stop = () => {
+    try {
+      ff.kill('SIGKILL');
+    } catch {
+      /* ignore */
+    }
+  };
+  req.on('close', stop);
+  res.on('close', stop);
+}
+
 function handler(req, res, next) {
-  if (!req.url || req.url.indexOf('/__proxy?') !== 0) return next();
+  if (!req.url) return next();
+  const isProxy = req.url.indexOf('/__proxy?') === 0;
+  const isTranscode = req.url.indexOf('/__transcode?') === 0;
+  if (!isProxy && !isTranscode) return next();
   const target = new URL(req.url, 'http://localhost').searchParams.get('url') || '';
   if (!/^https?:\/\//i.test(target)) {
     res.statusCode = 400;
     return res.end('URL invalide');
   }
+  if (isTranscode) return transcode(target, req, res);
   forward(target, req, res, 0);
 }
 

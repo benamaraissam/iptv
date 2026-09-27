@@ -9,4 +9,4 @@ export function alternateContainer(url: string): string | undefined {
   return m[1] + (m[2].toLowerCase() === 'ts' ? '.m3u8' : '.ts') + (m[3] || '');
 }
 
-export const isTsUrl = (url: string) => /\.ts(\?|$)/i.test(url);
+export const isTsUrl = (url: string) => /\.ts(\?|$)/i.test(url) || /\/__transcode\?/.test(url);

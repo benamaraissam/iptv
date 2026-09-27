@@ -67,6 +67,11 @@ npm run build      # build de production dans dist/
 > catalogue, flux HLS et vérification des chaînes fonctionnent donc dans Chrome.
 > Les applications Android, iOS, Tizen et webOS n'en ont pas besoin.
 
+Chaînes en **1080i (H.264 entrelacé)** : Chrome sur ordinateur ne les décode pas (`PIPELINE_ERROR_DECODE`),
+alors que les téléviseurs, Fire TV et Android disposent de décodeurs matériels adaptés. En développement,
+le proxy sait les désentrelacer à la volée avec ffmpeg (`brew install ffmpeg`) : le lecteur bascule
+automatiquement sur `/__transcode?url=…` quand le décodeur refuse la vidéo.
+
 ## Android
 
 Prérequis : Android Studio.
