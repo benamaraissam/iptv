@@ -458,6 +458,21 @@ export class Catalog {
     return d;
   }
 
+  /**
+   * Connexions utilisées sur le compte Xtream (user_info.active_cons / max_connections) :
+   * un flux refusé l'est très souvent parce que la seule connexion autorisée est prise.
+   */
+  async connectionUsage(): Promise<{ active: number; max: number } | null> {
+    const src = this.playlist.source;
+    if (src.type !== 'xtream') return null;
+    try {
+      const a = await xt.getAccount(src);
+      return a.maxConnections ? { active: a.activeConnections || 0, max: a.maxConnections } : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Précharge la fiche et son grand visuel (survol / sélection d'une affiche). */
   prefetch(item: Channel | Show): void {
     if ('kind' in item && item.kind === 'live') return;

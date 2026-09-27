@@ -589,6 +589,34 @@ export function player(params: Params): Screen {
     errorBox.classList.remove('hidden');
     showOverlay(true);
     focusEl(errorBox.querySelector<HTMLElement>('button'));
+    checkConnections(errorBox.querySelector('p'));
+  };
+
+  // Compte Xtream à connexions limitées : si la cause est une connexion déjà prise, on le
+  // dit clairement et on relance tout seul la lecture dès que le serveur la libère.
+  let connTimer: number | undefined;
+  let connPolls = 0;
+  const checkConnections = (textEl: Element | null) => {
+    window.clearTimeout(connTimer);
+    connPolls = 0;
+    const poll = () => {
+      cat.connectionUsage().then((u) => {
+        if (!u || errorBox.classList.contains('hidden')) return;
+        if (u.active < u.max) {
+          if (connPolls > 0) {
+            attempts = 0;
+            start(true);
+          }
+          return;
+        }
+        if (textEl) textEl.textContent = t('connectionsFull').replace('{a}', String(u.active)).replace('{m}', String(u.max));
+        const d = errorBox.querySelector('.pl-error-detail');
+        if (d) d.textContent = t('waitingConnection');
+        // Toutes les 10 s pendant 3 min, puis on laisse la main (bouton Réessayer).
+        if (++connPolls <= 18) connTimer = window.setTimeout(poll, 10000);
+      });
+    };
+    poll();
   };
 
   const recover = (kind: PlaybackErrorKind, detail?: string) => {
@@ -821,6 +849,7 @@ export function player(params: Params): Screen {
       el.focus();
     },
     destroy: () => {
+      window.clearTimeout(connTimer);
       window.clearInterval(statsTimer);
       window.clearInterval(watchdog);
       window.clearTimeout(recoverTimer);
