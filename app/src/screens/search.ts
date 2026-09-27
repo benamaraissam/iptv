@@ -9,7 +9,7 @@ import { t } from '../i18n';
 import { posterCard } from './vod';
 import { brandClock, catalogProgress } from './common';
 import { hasGoodImage } from '../imgcache';
-import { languageOf } from '../versions';
+import { languageCounts, languageOf } from '../versions';
 import { rankSearch } from '../textsearch';
 
 const MAX_RESULTS = 60;
@@ -33,12 +33,6 @@ export function search(): Screen {
     }
     return l;
   };
-  const langCounts: Record<string, number> = {};
-  for (const x of (cat.movies as { id: string; name: string; group: string }[]).concat(cat.shows, cat.live)) {
-    const l = langOf(x);
-    if (l) langCounts[l] = (langCounts[l] || 0) + 1;
-  }
-  const langs = Object.keys(langCounts).sort((a, b) => langCounts[b] - langCounts[a]);
 
   const input = h('input', {
     class: 'input search-input focusable',
@@ -139,18 +133,21 @@ export function search(): Screen {
   );
 
   // Filtre par langue (films, séries, chaînes), quand le catalogue en distingue plusieurs.
-  const langChips =
-    langs.length > 1
-      ? chips(
-          [{ id: '', label: t('allLanguages') }].concat(langs.map((l) => ({ id: l, label: l }))),
-          lang,
-          (id) => {
-            lang = id;
-            render();
-          },
-        )
-      : null;
-  if (langChips) langChips.classList.add('lang-chips');
+  const langChips = h('div', { class: 'lang-chips hidden' });
+  let langsDone = false;
+  languageCounts([cat.movies, cat.shows, cat.live], (counts) => {
+    if (langsDone) return;
+    langsDone = true;
+    const langs = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    if (langs.length < 2) return;
+    langChips.appendChild(
+      chips([{ id: '', label: t('allLanguages') }].concat(langs.map((l) => ({ id: l, label: l }))), lang, (id) => {
+        lang = id;
+        render();
+      }),
+    );
+    langChips.classList.remove('hidden');
+  });
 
   const header = app.wide
     ? h('header', { class: 'tv-header' }, h('h1', { class: 'screen-title', text: t('search') }), brandClock())

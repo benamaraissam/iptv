@@ -5,6 +5,7 @@ import { h, clear } from '../ui/dom';
 import { icon, logoMark, type IconName } from '../ui/icons';
 import { art, bgArt, btn, card, hasModal, iconBtn, rail, rescuableArt } from '../ui/components';
 import { focusEl } from '../navigation';
+import { timed } from '../diag';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatRemaining, formatTime, t, type TKey } from '../i18n';
@@ -279,11 +280,30 @@ export function home(): Screen {
       x,
     );
 
-  const rows: (HTMLElement | null)[] = [];
-  const addRow = (title: string, items: HTMLElement[], seeAll?: () => void, cls = '') => {
-    const r = rail(title, items, seeAll);
-    if (r && cls) r.classList.add(cls);
-    rows.push(r);
+  // Les premières rangées sont construites tout de suite ; les suivantes une par une, entre
+  // deux images, pour que l'accueil s'affiche et réponde à la télécommande sans attendre.
+  const railsEl = h('div', { class: 'rails' });
+  const lazy: (() => HTMLElement | null)[] = [];
+  let eager = 3;
+  let lazyTimer: number | undefined;
+  const addRow = (title: string, items: HTMLElement[] | (() => HTMLElement[]), seeAll?: () => void, cls = '') => {
+    const make = () => {
+      const r = rail(title, typeof items === 'function' ? items() : items, seeAll);
+      if (r && cls) r.classList.add(cls);
+      return r;
+    };
+    if (eager > 0) {
+      eager--;
+      const r = make();
+      if (r) railsEl.appendChild(r);
+    } else lazy.push(make);
+  };
+  const buildLazy = () => {
+    const make = lazy.shift();
+    if (!make) return;
+    const r = timed('accueil : rangée différée', make);
+    if (r) railsEl.appendChild(r);
+    lazyTimer = window.setTimeout(buildLazy, 0);
   };
 
   addRow(
@@ -326,24 +346,24 @@ export function home(): Screen {
 
   // En direct maintenant (chaînes avec programme connu en priorité)
   const liveNow = pickLiveNow(live, history, myList.map((r) => r.id));
-  addRow(t('liveNowRow'), liveNow.map((c) => channelTile(c, live, attachHero)), () => app.reset('live'), 'rail-live');
+  addRow(t('liveNowRow'), () => liveNow.map((c) => channelTile(c, live, attachHero)), () => app.reset('live'), 'rail-live');
 
-  addRow(t('recentlyAdded'), recent.slice(0, RAIL).map(posterCard));
+  addRow(t('recentlyAdded'), () => recent.slice(0, RAIL).map(posterCard));
 
   // Genres films / séries
   const movieGroups = topGroups(movies, N_MOVIE_GENRES);
   const byMovieGroup = firstByGroup(movies, movieGroups, RAIL * 2);
-  for (const g of movieGroups) addRow(g, imageFirst(byMovieGroup[g], posterOf).slice(0, RAIL).map(posterCard), () => app.push('movies', { group: g }));
+  for (const g of movieGroups) addRow(g, () => imageFirst(byMovieGroup[g], posterOf).slice(0, RAIL).map(posterCard), () => app.push('movies', { group: g }));
   const showGroups = topGroups(shows, N_SHOW_GENRES);
   const byShowGroup = firstByGroup(shows, showGroups, RAIL * 2);
-  for (const g of showGroups) addRow(g, imageFirst(byShowGroup[g], posterOf).slice(0, RAIL).map(posterCard), () => app.push('series', { group: g }));
+  for (const g of showGroups) addRow(g, () => imageFirst(byShowGroup[g], posterOf).slice(0, RAIL).map(posterCard), () => app.push('series', { group: g }));
 
   // Chaînes par catégorie
   const liveGroups = topGroups(live, N_LIVE_GROUPS);
   const byLiveGroup = firstByGroup(live, liveGroups, RAIL);
   for (const g of liveGroups) {
     const chans = byLiveGroup[g];
-    addRow(g, chans.map((c) => channelTile(c, chans, attachHero)), () => app.reset('live', { group: g }), 'rail-live');
+    addRow(g, () => chans.map((c) => channelTile(c, chans, attachHero)), () => app.reset('live', { group: g }), 'rail-live');
   }
 
   // Chaînes regardées récemment
@@ -353,7 +373,8 @@ export function home(): Screen {
     const c = cat.get(hEntry.id) as Channel | undefined;
     if (c && isLive(c) && !app.isLocked(c.group)) recentLive.push(c);
   }
-  addRow(t('recentChannels'), recentLive.slice(0, RAIL).map((c) => channelTile(c, recentLive, attachHero)), undefined, 'rail-live');
+  addRow(t('recentChannels'), () => recentLive.slice(0, RAIL).map((c) => channelTile(c, recentLive, attachHero)), undefined, 'rail-live');
+  lazyTimer = window.setTimeout(buildLazy, 0);
 
   // Accès rapides (mobile)
   const quick: [IconName, TKey, () => void][] = [
@@ -383,8 +404,8 @@ export function home(): Screen {
   // TV / grand écran : l'affiche reste fixe en haut et présente la vignette sélectionnée,
   // seules les rangées défilent dessous (comme Netflix sur TV).
   const scroller = wide
-    ? h('div', { class: 'scroll home-scroll home-rails-area' }, h('div', { class: 'rails' }, rows))
-    : h('div', { class: 'scroll home-scroll' }, featured.length ? hero : null, quickRow, h('div', { class: 'rails' }, rows));
+    ? h('div', { class: 'scroll home-scroll home-rails-area' }, railsEl)
+    : h('div', { class: 'scroll home-scroll' }, featured.length ? hero : null, quickRow, railsEl);
   const el = wide
     ? h('section', { class: 'home netflix immersive' + (featured.length ? '' : ' no-hero') }, featured.length ? hero : null, header, scroller)
     : h('section', { class: 'home netflix' }, header, scroller);
@@ -443,6 +464,7 @@ export function home(): Screen {
     destroy: () => {
       window.clearTimeout(rotateTimer);
       window.clearTimeout(focusTimer);
+      window.clearTimeout(lazyTimer);
       progress.off();
       offProgress();
     },

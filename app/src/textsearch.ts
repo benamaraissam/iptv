@@ -84,7 +84,9 @@ function indexOf<T extends { name: string }>(list: T[]): Entry[] {
   return idx.entries;
 }
 
-const CHUNK = 2500;
+// Tranche courte : chaque tranche doit rester sous ~30 ms même sur une box TV lente,
+// pour qu'une touche de télécommande ne soit jamais retardée.
+const CHUNK = 800;
 
 /**
  * Construit l'index à l'avance, par petites tranches entre deux images, pour que la

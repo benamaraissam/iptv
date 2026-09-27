@@ -4,16 +4,25 @@ import { idbDel, idbGet, idbKeys, idbSet } from './idb';
 
 const P = 'sp.';
 
+// Valeurs déjà lues : « Ma liste », progression, réglages sont consultés pour chaque
+// carte affichée ; relire et décoder le JSON à chaque fois ralentissait les box TV.
+const cache = new Map<string, unknown>();
+
 function read<T>(key: string, fallback: T): T {
+  if (cache.has(key)) return cache.get(key) as T;
+  let v: T = fallback;
   try {
     const raw = localStorage.getItem(P + key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    if (raw) v = JSON.parse(raw) as T;
   } catch {
-    return fallback;
+    /* stockage indisponible */
   }
+  cache.set(key, v);
+  return v;
 }
 
 function write(key: string, value: unknown): boolean {
+  cache.set(key, value);
   try {
     localStorage.setItem(P + key, JSON.stringify(value));
     return true;
@@ -24,6 +33,7 @@ function write(key: string, value: unknown): boolean {
 }
 
 function remove(key: string): void {
+  cache.delete(key);
   try {
     localStorage.removeItem(P + key);
   } catch {

@@ -120,6 +120,18 @@ public class MainActivity extends BridgeActivity {
         String target = u.getQueryParameter("url");
         if (target != null && (target.startsWith("http://") || target.startsWith("https://"))) return proxy(target, request);
       }
+      // Vignettes réduites et mises en cache (voir ImageProxy) : `/__img?url=…&w=400`.
+      if (u != null && "/__img".equals(u.getPath())) {
+        String target = u.getQueryParameter("url");
+        String w = u.getQueryParameter("w");
+        int width = 400;
+        try {
+          if (w != null) width = Math.max(32, Math.min(2048, Integer.parseInt(w)));
+        } catch (NumberFormatException ignored) {
+          /* largeur par défaut */
+        }
+        if (target != null && (target.startsWith("http://") || target.startsWith("https://"))) return ImageProxy.serve(view.getContext(), target, width);
+      }
       return super.shouldInterceptRequest(view, request);
     }
 

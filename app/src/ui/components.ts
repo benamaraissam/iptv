@@ -1,7 +1,7 @@
 import { h, detach, clear } from './dom';
 import { mark } from '../diag';
 import { hasGoodImage, hostLooksDown, hostProxyState, markBadImage, markHostProxy, worthTrying } from '../imgcache';
-import { proxied } from '../http';
+import { proxied, thumb } from '../http';
 import { icon, type IconName } from './icons';
 import { focusEl, focusFirst, getNavRoot, setNavRoot } from '../navigation';
 import { t } from '../i18n';
@@ -193,7 +193,7 @@ export function art(src: string | undefined, name: string, cls = '', onFail?: ()
       // Pendant le téléchargement : animation de chargement, image masquée (sinon le
       // navigateur dessine l'image par blocs sur un serveur lent, comme si elle était corrompue).
       box.classList.add('loading');
-      img.src = viaProxy ? proxied(src) : src;
+      img.src = viaProxy ? proxied(src) : thumb(src, /contain/.test(cls) ? 240 : /round/.test(cls) ? 160 : 400);
     });
   }
   return box;
@@ -598,17 +598,19 @@ export function bgArt(url: string, title: string): HTMLElement {
   const box = h('div', { class: 'bgart' }, cover, sharp);
   // Un seul comportement, façon Netflix : l'image nette à ses proportions, centrée,
   // jamais étirée ; une copie floutée remplit le reste de l'écran.
+  // Sur box TV : version réduite (1280 px de large suffit pour un fond flouté / fondu).
+  const src = thumb(url, 1280);
   const probe = new Image();
   probe.setAttribute('referrerpolicy', 'no-referrer');
   probe.onload = () => {
     const w = probe.naturalWidth;
     const hgt = probe.naturalHeight;
     box.classList.add(w && hgt && w / hgt < 1.25 ? 'portrait' : 'landscape');
-    sharp.src = url;
+    sharp.src = src;
     box.classList.add('in');
   };
   probe.onerror = () => box.classList.add('in');
-  probe.src = url;
+  probe.src = src;
   box.setAttribute('title', title);
   return box;
 }

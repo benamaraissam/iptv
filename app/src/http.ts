@@ -29,6 +29,16 @@ export function proxied(url: string): string {
   return '/__proxy?url=' + encodeURIComponent(url);
 }
 
+/**
+ * Vignette réduite par l'application Android (ImageProxy) : décodée une fois, mise en cache
+ * sur disque. Les affiches d'origine (500 × 750 à 2000 × 3000) rendaient les box TV lentes.
+ * Ailleurs, l'image d'origine.
+ */
+export function thumb(url: string, width: number): string {
+  if (!hasNativeProxy || !/^https?:\/\//i.test(url)) return url;
+  return '/__img?url=' + encodeURIComponent(url) + '&w=' + width;
+}
+
 /** Message clair à partir d'une erreur réseau. */
 export function describeNetworkError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);

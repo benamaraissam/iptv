@@ -1,5 +1,5 @@
 import type { AccountInfo, Channel, Details, Episode, Playlist, Program, Show } from './types';
-import { VersionIndex } from './versions';
+import { VersionIndex, warmVersions } from './versions';
 import { prepareSearch } from './textsearch';
 import { mark, timed } from './diag';
 import { hashId, parseEpgUrl, parseM3U } from './m3u';
@@ -128,6 +128,7 @@ export class Catalog {
       prepareSearch(this.movies);
       prepareSearch(this.shows);
       prepareSearch(this.live);
+      this.warm();
     }, 2000);
     const src = playlist.source;
     this.epg = new EpgStore(
@@ -263,6 +264,7 @@ export class Catalog {
         this.index.set(m.id, m);
       }
       prepareSearch(this.movies);
+      this.warm();
     } else {
       for (const sh of items as Show[]) {
         if (!hasGoodImage(sh.cover)) sh.cover = knownPoster(sh.id) || sh.cover;
@@ -270,7 +272,17 @@ export class Catalog {
         this.index.set(sh.id, sh);
       }
       prepareSearch(this.shows);
+      this.warm();
     }
+  }
+
+  /** Langues, clés de titre et index des versions calculés en arrière-plan, par tranches. */
+  private warm(): void {
+    warmVersions(this.movies);
+    warmVersions(this.shows);
+    warmVersions(this.live);
+    this.movieVersions.warm();
+    this.showVersions.warm();
   }
 
   get(id: string): Channel | Show | undefined {

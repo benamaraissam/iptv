@@ -6,7 +6,7 @@ import { card, chips, emptyState, iconBtn, screenHeader, type ChipOption } from 
 import { t } from '../i18n';
 import { brandClock, catalogProgress, categoryButton, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { icon } from '../ui/icons';
-import { languageOf } from '../versions';
+import { languageCounts, languageOf } from '../versions';
 import { matchesQuery } from '../textsearch';
 
 type Item = Channel | Show;
@@ -26,18 +26,8 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
   let lang = '';
   let query = '';
 
-  // Langue de chaque titre (catégorie puis étiquettes du nom), calculée une fois par catégorie.
-  const langByGroup: Record<string, string | undefined> = {};
-  const langOf = (x: Item): string => {
-    if (!(x.group in langByGroup)) langByGroup[x.group] = languageOf({ name: '', group: x.group });
-    return langByGroup[x.group] || languageOf(x) || '';
-  };
-  const langCounts: Record<string, number> = {};
-  for (const x of all) {
-    const l = langOf(x);
-    if (l) langCounts[l] = (langCounts[l] || 0) + 1;
-  }
-  const langs = Object.keys(langCounts).sort((a, b) => langCounts[b] - langCounts[a]);
+  // Langue de chaque titre (catégorie puis étiquettes du nom) ; mise en cache par élément.
+  const langOf = (x: Item): string => languageOf(x) || '';
 
   const body = h('div', { class: 'scroll' });
   const grid = h('div', { class: 'poster-grid' });
@@ -82,7 +72,14 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
     pagedList(body, grid, items, (x) => posterCard(x), 42);
   };
 
-  const countOf = (g: string | null) => (g === null ? all.filter((x) => !app.isLocked(x.group)).length : all.filter((x) => x.group === g).length);
+  // Nombre de titres par catégorie, compté une fois (le sélecteur le demande pour chaque catégorie).
+  const counts: Record<string, number> = {};
+  let unlocked = 0;
+  for (const x of all) {
+    counts[x.group] = (counts[x.group] || 0) + 1;
+    if (!app.isLocked(x.group)) unlocked++;
+  }
+  const countOf = (g: string | null) => (g === null ? unlocked : counts[g] || 0);
   const allGroups = kind === 'movies' ? cat.vodGroups : cat.showGroups;
   const catBtn = categoryButton({
     groups: allGroups.length ? allGroups : cat.groups(all),
@@ -121,14 +118,23 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
     if ((e as KeyboardEvent).keyCode === 13) (input as HTMLInputElement).blur();
   });
   const searchEl = h('div', { class: 'vod-search' }, icon('search', 'search-ic'), input);
-  const langEl =
-    langs.length > 1
-      ? chips([{ id: '', label: t('allLanguages') }].concat(langs.map((l) => ({ id: l, label: l }))), lang, (id) => {
-          lang = id;
-          render();
-        })
-      : null;
-  if (langEl) langEl.classList.add('lang-chips');
+  // Puces de langue : comptage immédiat si le catalogue est préchauffé, sinon par tranches
+  // en arrière-plan (les puces apparaissent alors une fois prêtes).
+  const langEl = h('div', { class: 'lang-chips hidden' });
+  let langsDone = false;
+  languageCounts([all], (counts) => {
+    if (langsDone) return;
+    langsDone = true;
+    const langs = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    if (langs.length < 2) return;
+    langEl.appendChild(
+      chips([{ id: '', label: t('allLanguages') }].concat(langs.map((l) => ({ id: l, label: l }))), lang, (id) => {
+        lang = id;
+        render();
+      }),
+    );
+    langEl.classList.remove('hidden');
+  });
 
   const progress = catalogProgress();
   // Fin du chargement progressif : la vue « Toutes les catégories » se complète.

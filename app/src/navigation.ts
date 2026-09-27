@@ -106,7 +106,14 @@ export function revealEl(el: HTMLElement): void {
 export function focusFirst(scope: HTMLElement = root): boolean {
   const auto = scope.querySelector<HTMLElement>('[data-autofocus]');
   if (auto && visible(auto)) return focusEl(auto);
-  return focusEl(focusables(scope)[0]);
+  // Premier élément visible, sans mesurer tous les autres (des centaines de cartes).
+  const roots: (Element | null)[] = scope === document.body ? [document.querySelector('.sidenav'), document.querySelector('.tabbar'), document.querySelector('.screen.active')] : [scope];
+  for (const r of roots) {
+    if (!r) continue;
+    const nodes = r.querySelectorAll<HTMLElement>('.focusable');
+    for (let i = 0; i < nodes.length; i++) if (visible(nodes[i])) return focusEl(nodes[i]);
+  }
+  return false;
 }
 
 export function move(dir: Direction, scope: HTMLElement = root): boolean {
