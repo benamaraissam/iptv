@@ -41,6 +41,24 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
   let showAll = false;
   const collate = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }).compare : (a: string, b: string) => a.localeCompare(b);
   const current = (): Item[] => {
+    // Même catalogue, mêmes filtres : résultat mémorisé (100 000 titres à filtrer, trier et
+    // regrouper coûtaient près d'une seconde à chaque ouverture de l'écran sur box TV).
+    const prefer = lang || interfaceLanguage(store.getSettings().lang);
+    const key = [group, lang, query, sort, showAll ? 1 : 0, all.length, prefer].join('\u0001');
+    let memo = listMemo.get(all);
+    if (!memo || memo.parental !== store.getParental()) listMemo.set(all, (memo = { parental: store.getParental(), results: new Map() }));
+    const hit = memo.results.get(key);
+    if (hit) {
+      fullCount = hit.fullCount;
+      truncated = hit.truncated;
+      return hit.list;
+    }
+    const list = compute(prefer);
+    memo.results.set(key, { list, fullCount, truncated });
+    if (memo.results.size > 24) memo.results.delete(memo.results.keys().next().value as string);
+    return list;
+  };
+  const compute = (prefer: string | undefined): Item[] => {
     let list = group === null ? all.filter((x) => !app.isLocked(x.group)) : all.filter((x) => x.group === group);
     if (lang) list = list.filter((x) => langOf(x) === lang);
     if (query) {
@@ -57,7 +75,7 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
     truncated = !showAll && list.length > PARTIAL_MIN;
     list = truncated ? topK(list, cmp, PARTIAL_K * 2) : list.slice().sort(cmp);
     // Une carte par titre : les autres langues se choisissent sur la fiche.
-    list = dedupeVersions(list, lang || interfaceLanguage(store.getSettings().lang));
+    list = dedupeVersions(list, prefer);
     if (truncated) list = list.slice(0, PARTIAL_K);
     return imageFirst(list, (x) => ('kind' in x ? x.logo : x.cover));
   };
@@ -97,12 +115,18 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
   };
 
   // Nombre de titres par catégorie, compté une fois (le sélecteur le demande pour chaque catégorie).
-  const counts: Record<string, number> = {};
-  let unlocked = 0;
-  for (const x of all) {
-    counts[x.group] = (counts[x.group] || 0) + 1;
-    if (!app.isLocked(x.group)) unlocked++;
+  let cm = countMemo.get(all);
+  if (!cm || cm.n !== all.length || cm.parental !== store.getParental()) {
+    const c: Record<string, number> = {};
+    let u = 0;
+    for (const x of all) {
+      c[x.group] = (c[x.group] || 0) + 1;
+      if (!app.isLocked(x.group)) u++;
+    }
+    countMemo.set(all, (cm = { n: all.length, parental: store.getParental(), counts: c, unlocked: u }));
   }
+  const counts = cm.counts;
+  const unlocked = cm.unlocked;
   const countOf = (g: string | null) => (g === null ? unlocked : counts[g] || 0);
   const allGroups = kind === 'movies' ? cat.vodGroups : cat.showGroups;
   const catBtn = categoryButton({
@@ -210,6 +234,11 @@ export function movies(params: { group?: string }): Screen {
 export function series(params: { group?: string }): Screen {
   return vodScreen('series', params);
 }
+
+const countMemo = new WeakMap<object, { n: number; parental: unknown; counts: Record<string, number>; unlocked: number }>();
+
+/** Listes déjà calculées, par catalogue (films ou séries) et combinaison de filtres. */
+const listMemo = new WeakMap<object, { parental: unknown; results: Map<string, { list: any[]; fullCount: number; truncated: boolean }> }>();
 
 /**
  * Les `k` premiers éléments selon `cmp`, triés, sans trier toute la liste (sélection

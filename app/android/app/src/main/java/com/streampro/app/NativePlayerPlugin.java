@@ -45,6 +45,11 @@ public class NativePlayerPlugin extends Plugin {
   /** Lecture arrêtée par le passage en arrière-plan, et position où la reprendre (ms). */
   private boolean stoppedInBackground;
   private long lastTimeSent;
+  private float boundsScale = 1f;
+  private float boundsX;
+  private float boundsY;
+  private boolean awaitingFrame;
+  private int mediaToken;
   private int lastBufferStep = -1;
   /** Lien en cours et compteur de déplacements (seul le dernier est vérifié). */
   private String currentUrl;
@@ -137,6 +142,8 @@ public class NativePlayerPlugin extends Plugin {
         break;
       case MediaPlayer.Event.Playing:
         playing = true;
+        // Filet de sécurité (flux sans événement « vout », audio seul…).
+        if (awaitingFrame) revealSurface(900);
         kind = "playing";
         break;
       case MediaPlayer.Event.Paused:
@@ -168,6 +175,8 @@ public class NativePlayerPlugin extends Plugin {
         kind = "tracks";
         break;
       case MediaPlayer.Event.Vout:
+        // Sortie vidéo créée : la première image arrive juste après.
+        if (ev.getVoutCount() > 0 && awaitingFrame) revealSurface(120);
         IMedia.VideoTrack vt = player.getCurrentVideoTrack();
         if (vt != null) {
           width = vt.width;
@@ -232,8 +241,10 @@ public class NativePlayerPlugin extends Plugin {
                 stoppedInBackground = false;
                 resumeAt = 0;
                 currentUrl = url;
-                seekToken++;
+                int token = ++seekToken;
                 startMedia(url, startAt);
+                // Reprise ou changement de langue : la position de départ est vérifiée.
+                if (startAt > 0 && !live) ensurePosition((long) (startAt * 1000), token, 0);
                 layout.setVisibility(View.VISIBLE);
                 call.resolve();
               } catch (Exception e) {
@@ -246,7 +257,35 @@ public class NativePlayerPlugin extends Plugin {
    * Ouvre le média (arrêt préalable : la connexion précédente est fermée avant d'en ouvrir
    * une nouvelle — indispensable sur les comptes à une seule connexion).
    */
+  /**
+   * Position de la surface. Tant que le nouveau flux n'a pas affiché sa première image, la
+   * surface est écartée hors de l'écran (sans être détruite) : elle garderait sinon la
+   * dernière image du flux précédent pendant l'ouverture du suivant.
+   */
+  private void applyBounds() {
+    if (layout == null) return;
+    layout.setScaleX(boundsScale);
+    layout.setScaleY(boundsScale);
+    layout.setTranslationX(awaitingFrame ? -100000f : boundsX);
+    layout.setTranslationY(boundsY);
+  }
+
+  private void revealSurface(long delayMs) {
+    final int token = mediaToken;
+    new android.os.Handler(android.os.Looper.getMainLooper())
+        .postDelayed(
+            () -> {
+              if (token != mediaToken || !awaitingFrame) return;
+              awaitingFrame = false;
+              applyBounds();
+            },
+            delayMs);
+  }
+
   private void startMedia(String url, double startAtSec) {
+    mediaToken++;
+    awaitingFrame = true;
+    applyBounds();
     player.stop();
     lastBufferStep = -1;
     lastTimeSent = 0;
@@ -317,23 +356,34 @@ public class NativePlayerPlugin extends Plugin {
                 // Vérification 3 s plus tard : si la lecture n'a pas rejoint la position voulue
                 // (déplacement refusé par le serveur, flux sans « Range »…), on rouvre le film
                 // directement à cette position (:start-time), connexion précédente fermée.
-                final int token = ++seekToken;
-                final long target = ms;
-                new android.os.Handler(android.os.Looper.getMainLooper())
-                    .postDelayed(
-                        () -> {
-                          if (player == null || token != seekToken || live || currentUrl == null) return;
-                          long now = player.getTime();
-                          android.util.Log.i("StreamPro", "seek vérifié : position " + now + " ms (cible " + target + " ms)");
-                          if (Math.abs(now - target) > 20000) {
-                            android.util.Log.i("StreamPro", "seek non appliqué → réouverture à " + target / 1000 + " s");
-                            startMedia(currentUrl, target / 1000.0);
-                          }
-                        },
-                        3000);
+                ensurePosition(ms, ++seekToken, 0);
               }
               call.resolve();
             });
+  }
+
+  /**
+   * Vérifie que la lecture a bien rejoint `target` (ms). Sur un compte à une seule
+   * connexion, le serveur refuse souvent la requête de déplacement tant qu'il n'a pas
+   * libéré la connexion précédente : on réessaie en laissant de plus en plus de temps
+   * (3 s, 5 s, 8 s), d'abord par un simple déplacement, puis en rouvrant le film à la
+   * position voulue.
+   */
+  private void ensurePosition(final long target, final int token, final int attempt) {
+    final long[] delays = {3000, 5000, 8000};
+    if (attempt >= delays.length) return;
+    new android.os.Handler(android.os.Looper.getMainLooper())
+        .postDelayed(
+            () -> {
+              if (player == null || token != seekToken || live || currentUrl == null) return;
+              long now = player.getTime();
+              android.util.Log.i("StreamPro", "position vérifiée (essai " + (attempt + 1) + ") : " + now + " ms, cible " + target + " ms");
+              if (Math.abs(now - target) <= 20000) return;
+              if (attempt == 0 && player.isSeekable()) player.setTime(target);
+              else startMedia(currentUrl, target / 1000.0);
+              ensurePosition(target, token, attempt + 1);
+            },
+            delays[attempt]);
   }
 
   /** Zone vidéo (en pixels CSS de la WebView) ; `visible` faux → surface cachée. */
@@ -367,10 +417,10 @@ public class NativePlayerPlugin extends Plugin {
               float bh = (float) h * d;
               // Échelle uniforme (l'image garde ses proportions), centrée dans la zone.
               float sc = Math.min(bw / pw, bh / ph);
-              layout.setScaleX(sc);
-              layout.setScaleY(sc);
-              layout.setTranslationX(bx + (bw - pw * sc) / 2f);
-              layout.setTranslationY(by + (bh - ph * sc) / 2f);
+              boundsScale = sc;
+              boundsX = bx + (bw - pw * sc) / 2f;
+              boundsY = by + (bh - ph * sc) / 2f;
+              applyBounds();
               layout.setVisibility(View.VISIBLE);
               call.resolve();
             });

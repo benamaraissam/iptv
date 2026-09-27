@@ -47,16 +47,25 @@ export function home(): Screen {
   // Partout sur l'accueil, les éléments avec une image passent devant.
   // Pas de tri « images d'abord » sur les listes entières (170 000 titres) : il se fait
   // sur chaque rangée, une fois les candidats choisis.
-  const movies = open(cat.movies);
-  const shows = open(cat.shows);
-  const live = imageFirst(open(cat.live), (c) => c.logo);
+  // Données lourdes (filtrage, meilleurs titres, catégories) mémorisées par catalogue :
+  // le retour sur l'accueil ne les recalcule plus sur 100 000 titres.
+  const mk = [cat.movies.length, cat.shows.length, cat.live.length, lowPower ? 1 : 0, interfaceLanguage(store.getSettings().lang)].join('|');
+  let base = homeMemo.get(cat);
+  if (!base || base.key !== mk || base.parental !== store.getParental()) {
+    base = { key: mk, parental: store.getParental(), movies: open(cat.movies), shows: open(cat.shows), live: imageFirst(open(cat.live), (c) => c.logo), derived: {} };
+    homeMemo.set(cat, base);
+  }
+  const memo = <T>(name: string, make: () => T): T => (name in base!.derived ? (base!.derived[name] as T) : (base!.derived[name] = make()));
+  const movies = base.movies;
+  const shows = base.shows;
+  const live = base.live;
   // Box TV : moins de rangées et de cartes, l'accueil se construit en une fraction de seconde.
   const RAIL = lowPower ? 12 : 20;
   const N_MOVIE_GENRES = lowPower ? 3 : 4;
   const N_SHOW_GENRES = lowPower ? 2 : 3;
   const N_LIVE_GROUPS = lowPower ? 4 : 8;
   mark('accueil : données (historique, meilleurs titres)');
-  const vod: Item[] = (movies as Item[]).concat(shows);
+  const vod: Item[] = memo('vod', () => (movies as Item[]).concat(shows));
   const cont = continueEntries(pid);
   const history = historyEntries(pid);
   const myList = store.getMyList(pid);
@@ -65,8 +74,8 @@ export function home(): Screen {
   // on en prend un peu plus que nécessaire pour que ceux avec image passent devant.
   // Une carte par titre (les versions linguistiques se choisissent sur la fiche).
   const prefer = interfaceLanguage(store.getSettings().lang);
-  const recent = imageFirst(dedupeVersions(topN(vod, 90, (x) => x.added || 0), prefer), posterOf).slice(0, 20);
-  const top10 = imageFirst(dedupeVersions(topN(vod, 60, (x) => x.rating || 0), prefer), posterOf).slice(0, 10);
+  const recent = memo('recent', () => imageFirst(dedupeVersions(topN(vod, 90, (x) => x.added || 0), prefer), posterOf).slice(0, 20));
+  const top10 = memo('top10', () => imageFirst(dedupeVersions(topN(vod, 60, (x) => x.rating || 0), prefer), posterOf).slice(0, 10));
 
   // ───── Éléments mis en avant (rotation) ─────
   mark('accueil : éléments mis en avant');
@@ -365,16 +374,16 @@ export function home(): Screen {
   addRow(t('recentlyAdded'), () => recent.slice(0, RAIL).map(posterCard));
 
   // Genres films / séries
-  const movieGroups = topGroups(movies, N_MOVIE_GENRES);
-  const byMovieGroup = firstByGroup(movies, movieGroups, RAIL * 2);
+  const movieGroups = memo('movieGroups', () => topGroups(movies, N_MOVIE_GENRES));
+  const byMovieGroup = memo('byMovieGroup', () => firstByGroup(movies, movieGroups, RAIL * 2));
   for (const g of movieGroups) addRow(g, () => imageFirst(dedupeVersions(byMovieGroup[g], prefer), posterOf).slice(0, RAIL).map(posterCard), () => app.push('movies', { group: g }));
-  const showGroups = topGroups(shows, N_SHOW_GENRES);
-  const byShowGroup = firstByGroup(shows, showGroups, RAIL * 2);
+  const showGroups = memo('showGroups', () => topGroups(shows, N_SHOW_GENRES));
+  const byShowGroup = memo('byShowGroup', () => firstByGroup(shows, showGroups, RAIL * 2));
   for (const g of showGroups) addRow(g, () => imageFirst(dedupeVersions(byShowGroup[g], prefer), posterOf).slice(0, RAIL).map(posterCard), () => app.push('series', { group: g }));
 
   // Chaînes par catégorie
-  const liveGroups = topGroups(live, N_LIVE_GROUPS);
-  const byLiveGroup = firstByGroup(live, liveGroups, RAIL);
+  const liveGroups = memo('liveGroups', () => topGroups(live, N_LIVE_GROUPS));
+  const byLiveGroup = memo('byLiveGroup', () => firstByGroup(live, liveGroups, RAIL));
   for (const g of liveGroups) {
     const chans = byLiveGroup[g];
     addRow(g, () => chans.map((c) => channelTile(c, chans, attachHero)), () => app.reset('live', { group: g }), 'rail-live');
@@ -588,6 +597,9 @@ function firstByGroup<T extends { group: string }>(list: T[], groups: string[], 
 }
 
 /** Chaînes à mettre en avant : favoris, puis regardées récemment, puis une par catégorie. */
+/** Données de l'accueil déjà calculées, par catalogue. */
+const homeMemo = new WeakMap<object, { key: string; parental: unknown; movies: Channel[]; shows: Show[]; live: Channel[]; derived: Record<string, unknown> }>();
+
 function pickLiveNow(live: Channel[], history: store.HistoryEntry[], favIds: string[]): Channel[] {
   const out: Channel[] = [];
   const seen: Record<string, boolean> = {};
