@@ -353,10 +353,20 @@ class AppCore {
 
   // ───────────────────────── Contenu ─────────────────────────
 
+  private lockedMemo: Record<string, boolean> = {};
+  private lockedFor: unknown = null;
   isLocked(group: string): boolean {
     const p = store.getParental();
-    if (!p.enabled || !p.pin || this.unlocked[group]) return false;
-    return p.lockedGroups.indexOf(group) !== -1 || (p.lockAdult && ADULT_RE.test(group));
+    if (!p.enabled || !p.pin) return false;
+    // Appelé pour chaque titre d'un catalogue (100 000 fois) : résultat mémorisé par catégorie.
+    if (this.lockedFor !== p) {
+      this.lockedFor = p;
+      this.lockedMemo = {};
+    }
+    if (this.unlocked[group]) return false;
+    let v = this.lockedMemo[group];
+    if (v === undefined) v = this.lockedMemo[group] = p.lockedGroups.indexOf(group) !== -1 || (p.lockAdult && ADULT_RE.test(group));
+    return v;
   }
 
   /** Demande le code PIN si la catégorie est verrouillée. */

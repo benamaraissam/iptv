@@ -2,7 +2,7 @@ import type { Screen } from '../app';
 import { app } from '../app';
 import type { Channel, Show } from '../types';
 import { h, clear, pagedList } from '../ui/dom';
-import { card, chips, emptyState, iconBtn, screenHeader, type ChipOption } from '../ui/components';
+import { btn, card, chips, emptyState, iconBtn, screenHeader, type ChipOption } from '../ui/components';
 import { t } from '../i18n';
 import { brandClock, catalogProgress, categoryButton, imageFirst, prefetchOnIntent, resolvePoster } from './common';
 import { icon } from '../ui/icons';
@@ -33,6 +33,12 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
   const grid = h('div', { class: 'poster-grid' });
   body.appendChild(grid);
 
+  const PARTIAL_MIN = 2500;
+  const PARTIAL_K = 600;
+  let truncated = false;
+  let fullCount = 0;
+  let showAll = false;
+  const collate = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }).compare : (a: string, b: string) => a.localeCompare(b);
   const current = (): Item[] => {
     let list = group === null ? all.filter((x) => !app.isLocked(x.group)) : all.filter((x) => x.group === group);
     if (lang) list = list.filter((x) => langOf(x) === lang);
@@ -42,10 +48,13 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
       for (const x of matchesQuery(all, query)) ok[x.id] = true;
       list = list.filter((x) => ok[x.id]);
     }
-    list = list.slice();
-    if (sort === 'popular') list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    else if (sort === 'new') list.sort((a, b) => (b.added || 0) - (a.added || 0));
-    else list.sort((a, b) => a.name.localeCompare(b.name));
+    const cmp: (a: Item, b: Item) => number =
+      sort === 'popular' ? (a, b) => (b.rating || 0) - (a.rating || 0) : sort === 'new' ? (a, b) => (b.added || 0) - (a.added || 0) : (a, b) => collate(a.name, b.name);
+    // Grande liste (« toutes les catégories » : des dizaines de milliers de titres) : on ne
+    // trie que les meilleurs, une box TV mettait 0,5 s à tout trier ; « Tout afficher » fait le reste.
+    fullCount = list.length;
+    truncated = !showAll && list.length > PARTIAL_MIN;
+    list = truncated ? topK(list, cmp, PARTIAL_K) : list.slice().sort(cmp);
     return imageFirst(list, (x) => ('kind' in x ? x.logo : x.cover));
   };
 
@@ -70,6 +79,17 @@ export function vodBrowser(kind: 'movies' | 'series', initialGroup?: string): { 
       return;
     }
     pagedList(body, grid, items, (x) => posterCard(x), 42);
+    if (truncated) {
+      const more = btn(t('showAll') + ' (' + fullCount + ')', {
+        variant: 'glass',
+        cls: 'vod-show-all',
+        onClick: () => {
+          showAll = true;
+          render();
+        },
+      });
+      body.appendChild(more);
+    }
   };
 
   // Nombre de titres par catégorie, compté une fois (le sélecteur le demande pour chaque catégorie).
@@ -181,4 +201,35 @@ export function movies(params: { group?: string }): Screen {
 
 export function series(params: { group?: string }): Screen {
   return vodScreen('series', params);
+}
+
+/**
+ * Les `k` premiers éléments selon `cmp`, triés, sans trier toute la liste (sélection
+ * rapide, en O(n)) : une catégorie « tout » de 100 000 titres s'ouvre sans attendre.
+ */
+function topK<T>(list: T[], cmp: (a: T, b: T) => number, k: number): T[] {
+  const a = list.slice();
+  if (a.length <= k) return a.sort(cmp);
+  let lo = 0;
+  let hi = a.length - 1;
+  while (lo < hi) {
+    const pivot = a[(lo + hi) >> 1];
+    let i = lo;
+    let j = hi;
+    while (i <= j) {
+      while (cmp(a[i], pivot) < 0) i++;
+      while (cmp(a[j], pivot) > 0) j--;
+      if (i <= j) {
+        const tmp = a[i];
+        a[i] = a[j];
+        a[j] = tmp;
+        i++;
+        j--;
+      }
+    }
+    if (k - 1 <= j) hi = j;
+    else if (k - 1 >= i) lo = i;
+    else break;
+  }
+  return a.slice(0, k).sort(cmp);
 }

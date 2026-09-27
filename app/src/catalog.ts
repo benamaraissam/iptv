@@ -3,7 +3,7 @@ import { VersionIndex, warmVersions } from './versions';
 import { prepareSearch } from './textsearch';
 import { mark, timed } from './diag';
 import { hashId, parseEpgUrl, parseM3U } from './m3u';
-import { fetchText, hasNativeProxy } from './http';
+import { fetchText } from './http';
 import * as xt from './xtream';
 import * as store from './storage';
 import { EpgStore } from './epg';
@@ -24,14 +24,17 @@ interface CacheData {
   serCats?: xt.XtreamCategory[];
 }
 
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 
 /**
  * Box TV et appareils peu puissants : la liste complète des films (plusieurs dizaines de Mo
  * de JSON) ne passe pas par le pont natif sans figer l'appareil. On charge alors les
  * catégories une par une, en arrière-plan, et l'interface est utilisable tout de suite.
  */
-const PROGRESSIVE = (isNative || lowPower) && !hasNativeProxy;
+// Android / Fire TV compris : relire d'un bloc un catalogue de 100 000 titres depuis
+// IndexedDB bloquait l'interface 3 s au démarrage (désérialisation), puis 1 s de
+// préparation. Par catégorie, l'accueil s'affiche tout de suite.
+const PROGRESSIVE = isNative || lowPower;
 
 export interface LoadState {
   done: number;

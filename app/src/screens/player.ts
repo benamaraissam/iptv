@@ -11,6 +11,7 @@ import { allEpisodes, episodePlayable } from './detail';
 import { versionLabels } from '../versions';
 import { matchesQuery } from '../textsearch';
 import { focusEl } from '../navigation';
+import { mark, timed } from '../diag';
 import { currentProgram } from '../epg';
 import * as store from '../storage';
 import { formatDuration, formatTime, t } from '../i18n';
@@ -94,7 +95,7 @@ export function player(params: Params): Screen {
   // (bouton ✕, touche jaune ou Retour) ; un onglet « Chaînes » permet de la rouvrir.
   const allLive = isLive ? cat.live.filter((c) => !app.isLocked(c.group)) : [];
   let markCurrent: () => void = () => undefined;
-  const side = isLive && allLive.length > 1 ? buildChannelSidebar() : null;
+  const side = isLive && allLive.length > 1 ? timed('lecteur : liste latérale', buildChannelSidebar) : null;
   let sideHover = false;
   function buildChannelSidebar(): HTMLElement {
     const groups: string[] = [];
@@ -530,6 +531,7 @@ export function player(params: Params): Screen {
   };
   const onWaiting = () => el.classList.add('buffering');
   const onPlaying = () => {
+    mark('lecteur : image affichée (écran)');
     el.classList.remove('buffering');
     errorBox.classList.add('hidden');
   };
@@ -670,6 +672,7 @@ export function player(params: Params): Screen {
 
   // Programme en cours pour le direct.
   const loadProgram = () => {
+    mark('lecteur : programme en cours');
     if (!isLive) return;
     const ch = cat.get(item.id) as Channel | undefined;
     const forId = item.id;

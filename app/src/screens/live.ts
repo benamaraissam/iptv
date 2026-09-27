@@ -241,6 +241,7 @@ export function live(params: { group?: string; channelId?: string }): Screen {
     );
     if (cat.epg.available) {
       const fill = (list: Program[]) => {
+        mark('TV : programme d’une ligne');
         const p = currentProgram(list);
         if (!p) return;
         prog.textContent = p.title;

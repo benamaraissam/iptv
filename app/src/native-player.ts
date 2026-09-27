@@ -158,7 +158,6 @@ export function createNativeMedia(): NativeMedia {
     // Comme pour un <video> : sans attribut src, load() décharge le flux.
     if (!el.getAttribute('src') && st.url) {
       st.url = null;
-      document.documentElement.classList.remove('native-playing');
       st.paused = true;
       st.readyState = 0;
       st.currentTime = 0;
@@ -193,7 +192,6 @@ export function createNativeMedia(): NativeMedia {
     load(url: string, startAt: number) {
       const live = /\/live\/|\.ts(\?|$)|\.m3u8?(\?|$)/i.test(url) && !/\/movie\/|\/series\//i.test(url);
       reset(url, live);
-      document.documentElement.classList.add('native-playing');
       el.setAttribute('src', url);
       fire('loadstart');
       fire('waiting');
