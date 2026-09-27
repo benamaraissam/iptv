@@ -1525,13 +1525,11 @@ html.kbd .epg-prog:focus {
 /* ─── Lecteur natif (Android / Fire TV, libVLC) : la surface vidéo est SOUS la WebView.
    La page devient transparente là où la vidéo doit apparaître ; le fond de fenêtre Android
    reprend la couleur de l'application. ─── */
-html.native-video body {
-  background: transparent;
-}
-html.native-video .player,
-html.native-video #video,
-html.native-video .monitor-screen {
-  background: transparent;
+html.native-video.native-playing body,
+html.native-video.native-playing .player,
+html.native-video.native-playing #video,
+html.native-video.native-playing .monitor-screen {
+  background: transparent !important;
 }
 html.native-video .native-video {
   display: block;

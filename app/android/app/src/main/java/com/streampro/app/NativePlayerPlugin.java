@@ -53,7 +53,7 @@ public class NativePlayerPlugin extends Plugin {
               WebView web = getBridge().getWebView();
               if (web == null) return;
               web.setBackgroundColor(Color.TRANSPARENT);
-              if (web.getParent() instanceof View) ((View) web.getParent()).setBackgroundColor(0xFF060A1C);
+              if (web.getParent() instanceof View) ((View) web.getParent()).setBackgroundColor(Color.TRANSPARENT);
             });
   }
 
@@ -91,7 +91,8 @@ public class NativePlayerPlugin extends Plugin {
     // La page est transparente (voir styles.css, html.native-video) : le fond de la fenêtre
     // reprend la couleur de fond de l'application, la vidéo apparaît par « transparence ».
     web.setBackgroundColor(Color.TRANSPARENT);
-    parent.setBackgroundColor(0xFF060A1C);
+    parent.setBackgroundColor(Color.TRANSPARENT);
+    getActivity().getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.BLACK));
     ViewGroup.MarginLayoutParams lp =
         parent instanceof CoordinatorLayout ? new CoordinatorLayout.LayoutParams(1, 1) : new FrameLayout.LayoutParams(1, 1);
     parent.addView(layout, 0, lp);
