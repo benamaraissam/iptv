@@ -95,10 +95,11 @@ public class NativePlayerPlugin extends Plugin {
     ViewGroup.MarginLayoutParams lp =
         parent instanceof CoordinatorLayout ? new CoordinatorLayout.LayoutParams(1, 1) : new FrameLayout.LayoutParams(1, 1);
     parent.addView(layout, 0, lp);
-    // TextureView (dernier paramètre) et non SurfaceView : une SurfaceView perce un trou sous
-    // toute la fenêtre, le fond de la vue parente (couleur de l'application) la recouvrirait.
-    // La TextureView se compose comme une vue ordinaire : au-dessus du fond, sous la WebView.
-    player.attachViews(layout, null, false, true);
+    // SurfaceView (voie standard de VLC sur Android / Fire TV ; la TextureView y échoue :
+    // « failed to create video output »). La SurfaceView efface elle-même, à son emplacement,
+    // tout ce qui a été dessiné avant elle (fond de fenêtre, fond de la vue parente) : la vidéo
+    // apparaît là où la page, au-dessus, est transparente.
+    player.attachViews(layout, null, false, false);
     player.setVideoScale(MediaPlayer.ScaleType.SURFACE_BEST_FIT);
     attached = true;
   }
@@ -291,15 +292,22 @@ public class NativePlayerPlugin extends Plugin {
     getActivity()
         .runOnUiThread(
             () -> {
-              if (layout != null && layout.getParent() instanceof ViewGroup) {
-                ViewGroup parent = (ViewGroup) layout.getParent();
-                ViewGroup.LayoutParams lp = layout.getLayoutParams();
-                parent.removeView(layout);
-                if (on) parent.addView(layout, lp);
-                else parent.addView(layout, 0, lp);
-              }
+              android.view.SurfaceView sv = findSurface(layout);
+              if (sv != null) sv.setZOrderOnTop(on);
               call.resolve();
             });
+  }
+
+  private static android.view.SurfaceView findSurface(View v) {
+    if (v instanceof android.view.SurfaceView) return (android.view.SurfaceView) v;
+    if (v instanceof ViewGroup) {
+      ViewGroup g = (ViewGroup) v;
+      for (int i = 0; i < g.getChildCount(); i++) {
+        android.view.SurfaceView r = findSurface(g.getChildAt(i));
+        if (r != null) return r;
+      }
+    }
+    return null;
   }
 
   @PluginMethod
