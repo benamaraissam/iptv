@@ -86,9 +86,13 @@ export function home(): Screen {
     for (const r of myList) if (r.kind === 'live') liveIds[r.id] = true;
     for (const hEntry of history) if (hEntry.kind === 'live') liveIds[hEntry.id] = true;
     for (const c of live) if (liveIds[c.id] && c.logo) feature({ kind: 'item', x: c });
-    for (const g of cat.groups(live)) {
-      const c = live.filter((x) => x.group === g && x.logo)[0];
-      if (c) feature({ kind: 'item', x: c });
+    // Une chaîne (avec logo) par catégorie, en une seule passe sur la liste.
+    const firstOfGroup: Record<string, boolean> = {};
+    for (const c of live) {
+      if (featured.length >= MAX_FEATURED) break;
+      if (firstOfGroup[c.group] || !c.logo) continue;
+      firstOfGroup[c.group] = true;
+      feature({ kind: 'item', x: c });
     }
   }
 

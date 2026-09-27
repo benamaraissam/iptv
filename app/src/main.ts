@@ -11,7 +11,13 @@ function start(): void {
   // Diagnostic depuis la console du navigateur : sp.catalog, sp.engine.stats()…
   (window as any).sp = app;
   // sp.diag() : derniers blocages de l'interface, avec ce que l'app faisait à ce moment-là.
-  (app as any).diag = diagReport;
+  (app as any).diag = () => {
+    const cat = app.catalog;
+    const head = cat
+      ? 'Catalogue : ' + cat.live.length + ' chaînes, ' + cat.movies.length + ' films, ' + cat.shows.length + ' séries — chargement ' + JSON.stringify(cat.loadState) + (cat.failures.length ? '\nÉchecs : ' + cat.failures.join(' ; ') : '')
+      : 'Catalogue : aucun';
+    return head + '\n\n' + diagReport();
+  };
   installDiag();
 }
 

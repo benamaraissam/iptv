@@ -101,6 +101,9 @@ export class Catalog {
   private catQueue: { kind: 'm' | 's'; cat: xt.XtreamCategory }[] = [];
   private catDone: Record<string, Promise<void>> = {};
   private catResolve: Record<string, () => void> = {};
+  private retries: Record<string, number> = {};
+  /** Catégories qui n'ont pas pu être chargées (diagnostic : sp.diag()). */
+  failures: string[] = [];
   private running = 0;
 
   private constructor(
@@ -235,7 +238,18 @@ export class Catalog {
       this.running++;
       this.loadCategory(q.kind, q.cat).then(
         () => this.finishCategory(q),
-        () => this.finishCategory(q),
+        (e) => {
+          const msg = String((e && e.message) || e);
+          this.failures.push((q.kind === 'm' ? 'films' : 'séries') + ' « ' + q.cat.name + ' » : ' + msg);
+          console.warn('[catalogue] catégorie « ' + q.cat.name + ' » : ' + msg);
+          // Un nouvel essai, en fin de file (coupure passagère, serveur qui limite les requêtes).
+          const tries = (this.retries[q.kind + q.cat.id] = (this.retries[q.kind + q.cat.id] || 0) + 1);
+          if (tries <= 2) {
+            this.catQueue.push(q);
+            this.running--;
+            window.setTimeout(() => this.pump(), 3000 * tries);
+          } else this.finishCategory(q);
+        },
       );
     }
   }
