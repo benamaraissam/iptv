@@ -607,6 +607,13 @@ export function player(params: Params): Screen {
     }, delay);
   };
   engine.onError = recover;
+  engine.onAudioDropped = () => {
+    reconnect.textContent = t('audioDropped');
+    reconnect.classList.remove('hidden');
+    window.setTimeout(() => {
+      if (engine.audioDropped) reconnect.classList.add('hidden');
+    }, 8000);
+  };
 
   // La lecture tourne à nouveau : après 20 s stables, on repart avec un compteur neuf.
   const onStable = () => {
@@ -803,6 +810,7 @@ export function player(params: Params): Screen {
       for (const [evt, fn] of listeners) video.removeEventListener(evt, fn);
       engine.onTracks = () => undefined;
       engine.onError = () => undefined;
+      engine.onAudioDropped = () => undefined;
       engine.stop();
       exitFullscreen();
     },

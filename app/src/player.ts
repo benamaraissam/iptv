@@ -76,6 +76,24 @@ function importWithTimeout<T>(load: () => Promise<T>, name: string, ms = 15000):
   });
 }
 
+/**
+ * Erreur média juste après l'ouverture d'un flux TS dont l'audio est déclaré « mp3 » :
+ * c'est presque toujours du MPEG-1 Layer II, que les navigateurs ne décodent pas.
+ */
+function audioLooksUndecodable(v: HTMLVideoElement, player: any): boolean {
+  const err = v.error;
+  if (!err) return false;
+  const msg = String(err.message || '');
+  if (/audio/i.test(msg)) return true;
+  try {
+    const info = player.mediaInfo;
+    if (info && info.hasAudio && /mp3|mpeg/i.test(String(info.audioCodec || ''))) return true;
+  } catch {
+    /* ignore */
+  }
+  return err.code === 3 && v.videoWidth === 0;
+}
+
 function codecUnsupported(codec?: string): boolean {
   if (!codec) return false;
   try {
@@ -97,6 +115,13 @@ export class Engine {
   private hls: Hls | null = null;
   /** Lecteur MPEG-TS (flux .ts sur navigateur / Android, qui ne les lisent pas nativement). */
   private mpegts: any = null;
+  /**
+   * Audio non décodable (MPEG Layer II des chaînes nationales, AC-3…) : on relit le flux
+   * image seule plutôt que d'échouer. `audioDropped` est vrai pendant cette lecture.
+   */
+  private videoOnlyUrl: string | null = null;
+  audioDropped = false;
+  onAudioDropped: () => void = () => undefined;
   private loadToken = 0;
   onError: (kind: PlaybackErrorKind, detail?: string) => void = () => undefined;
   onTracks: () => void = () => undefined;
@@ -170,6 +195,7 @@ export class Engine {
       this.t0 = Date.now();
       this.m = { rebuffers: 0 };
     }
+    this.audioDropped = this.videoOnlyUrl === url;
     // Les vérifications de chaînes s'arrêtent pendant la lecture (bande passante / connexions).
     setPlaybackActive(true);
     const v = this.video;
@@ -195,7 +221,7 @@ export class Engine {
       if (M.isSupported()) {
         this.triedHls = true;
         const player = M.createPlayer(
-          { type: 'mpegts', isLive: true, url: proxied(url) },
+          { type: 'mpegts', isLive: true, url: proxied(url), hasAudio: !this.audioDropped },
           {
             enableWorker: false,
             liveBufferLatencyChasing: true,
@@ -212,7 +238,13 @@ export class Engine {
         player.on(M.Events.ERROR, (type: string, detail: string, info: any) => {
           const status: number = (info && info.code) || 0;
           if (type === M.ErrorTypes.NETWORK_ERROR) this.fail(DENIED_STATUS[status] ? 'denied' : 'network', 'HTTP ' + status + ' ' + detail);
-          else if (detail === M.ErrorDetails.MEDIA_CODEC_UNSUPPORTED) this.fail('codec', detail);
+          else if (type === M.ErrorTypes.MEDIA_ERROR && !this.audioDropped && this.videoOnlyUrl !== url && audioLooksUndecodable(v, player)) {
+            // Le décodeur a rejeté l'audio (Layer II…) : on repart sans la piste son.
+            this.errors.push('audio non décodable (' + detail + ') → lecture image seule');
+            this.videoOnlyUrl = url;
+            this.onAudioDropped();
+            void this.load(url, startAt);
+          } else if (detail === M.ErrorDetails.MEDIA_CODEC_UNSUPPORTED) this.fail('codec', detail);
           else if (type === M.ErrorTypes.MEDIA_ERROR) this.fail('format', detail);
           else this.fail('other', detail);
         });
