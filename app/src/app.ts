@@ -2,7 +2,7 @@ import type { Channel, ItemRef, Playable, Playlist, Show } from './types';
 import { mark, timed } from './diag';
 import { Catalog } from './catalog';
 import { describeNetworkError } from './http';
-import { setAutoChecks, setPauseDuringPlayback } from './health';
+import { setPauseDuringPlayback } from './health';
 import * as store from './storage';
 import { Engine } from './player';
 import { h, clear, toast, setLoading } from './ui/dom';
@@ -333,7 +333,6 @@ class AppCore {
     try {
       this.catalog = await Catalog.load(p, force);
       setPauseDuringPlayback(p.source.type === 'xtream');
-      setAutoChecks(p.source.type !== 'xtream');
       store.updateSettings({ activePlaylist: p.id });
       return true;
     } catch (e) {

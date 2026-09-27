@@ -77,17 +77,12 @@ export function isRateLimited(): boolean {
 }
 
 /**
- * Vérification automatique désactivée sur les comptes Xtream (souvent 1 connexion et
- * requêtes limitées : sonder les chaînes fait refuser le flux qu'on veut regarder).
- * Les vérifications manuelles (bouton) restent possibles.
+ * Plus aucune vérification automatique : sonder une chaîne ouvre une connexion sur le
+ * compte (souvent limité à 1) et fait refuser le flux qu'on regarde. Seule la demande
+ * explicite (bouton « Vérifier les chaînes », `force`) lance une sonde.
  */
-let autoChecks = true;
-export function setAutoChecks(on: boolean): void {
-  autoChecks = on;
-}
-
 export function check(url: string, force = false): void {
-  if (!force && (!autoChecks || isRateLimited())) return;
+  if (!force || isRateLimited()) return;
   const cur = getHealth(url);
   if (!force && cur !== 'unknown') return;
   if (cur === 'checking' || queue.indexOf(url) !== -1) return;

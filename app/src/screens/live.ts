@@ -11,7 +11,6 @@ import * as store from '../storage';
 import { formatTime, t } from '../i18n';
 import { brandClock, categoryButton, channelNumber, imageFirst } from './common';
 import { mark, timed } from '../diag';
-import { lowPower } from '../platform';
 import { alternateUrl } from '../player';
 
 /**
@@ -33,9 +32,6 @@ export function live(params: { group?: string; channelId?: string }): Screen {
   let preview: Channel | null = null;
   let infoTimer: number | undefined;
   let destroyed = false;
-  // État des chaînes vérifié automatiquement dès l'ouverture de la liste (toutes playlists).
-  const AUTO_CHECK_MAX = lowPower ? 60 : 400;
-
   // ───── Données ─────
   const favIds = (): Record<string, boolean> => {
     const ids: Record<string, boolean> = {};
@@ -254,7 +250,6 @@ export function live(params: { group?: string; channelId?: string }): Screen {
       if (cached) fill(cached);
       else cat.epg.programs(ch).then(fill, () => undefined);
     }
-    check(ch.url);
     return el;
   };
 
@@ -304,9 +299,9 @@ export function live(params: { group?: string; channelId?: string }): Screen {
     listScroll.scrollTop = 0;
     cancelPending();
     items = timed('TV : filtrage / tri des chaînes', current);
-    // Toute la catégorie est vérifiée (pas seulement les lignes affichées),
-    // pour que le compteur et les pastilles soient prêts avant de faire défiler.
-    for (let i = 0; i < items.length && i < AUTO_CHECK_MAX; i++) check(items[i].url);
+    // Aucune vérification automatique : chaque sonde ouvre une connexion sur le compte
+    // (souvent limité à 1), ce qui fait refuser le flux qu'on veut regarder.
+    // L'état vient de la lecture réelle, ou du bouton « Vérifier les chaînes ».
     renderSummary();
     if (!items.length) {
       pager = null;

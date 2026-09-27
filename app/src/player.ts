@@ -257,6 +257,15 @@ export class Engine {
           else if (type === M.ErrorTypes.MEDIA_ERROR) this.fail('format', detail);
           else this.fail('other', detail);
         });
+        // Flux en direct : le serveur ne doit jamais « terminer » la réponse. S'il coupe
+        // (limite de connexions, autre appareil connecté…), on le traite comme une coupure
+        // réseau pour que la reprise automatique relance la chaîne.
+        player.on(M.Events.LOADING_COMPLETE, () => {
+          if (token !== this.loadToken) return;
+          window.setTimeout(() => {
+            if (token === this.loadToken && this.mpegts === player) this.fail('network', 'flux interrompu par le serveur');
+          }, 1500);
+        });
         player.on(M.Events.MEDIA_INFO, () => {
           mark('lecteur : flux MPEG-TS reconnu');
           this.onTracks();
