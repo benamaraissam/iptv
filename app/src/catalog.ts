@@ -7,6 +7,7 @@ import { fetchText } from './http';
 import * as xt from './xtream';
 import * as store from './storage';
 import { EpgStore } from './epg';
+import { idbGet, idbSet } from './idb';
 import { hasGoodImage, knownPoster } from './imgcache';
 import { isNative, lowPower } from './platform';
 
@@ -25,6 +26,8 @@ interface CacheData {
 }
 
 const CACHE_VERSION = 5;
+/** Durée de conservation d'une fiche film / série sur l'appareil. */
+const DETAILS_TTL = 3 * 86400000;
 
 /**
  * Box TV et appareils peu puissants : la liste complète des films (plusieurs dizaines de Mo
@@ -410,7 +413,7 @@ export class Catalog {
   details(item: Channel | Show): Promise<Details> {
     let p = this.detailCache.get(item.id);
     if (!p) {
-      p = this.loadDetails(item).then((d) => {
+      p = this.storedDetails(item).then((d) => {
         this.detailDone.set(item.id, d);
         return d;
       });
@@ -423,6 +426,23 @@ export class Catalog {
   /** Fiche déjà chargée (synchrone), pour un affichage immédiat. */
   cachedDetails(id: string): Details | undefined {
     return this.detailDone.get(id);
+  }
+
+  /**
+   * Fiche gardée sur l'appareil (IndexedDB) : un titre déjà ouvert ou survolé s'affiche
+   * instantanément aux ouvertures suivantes, même après redémarrage. Le serveur Xtream met
+   * souvent plusieurs secondes à répondre à get_vod_info / get_series_info.
+   */
+  private async storedDetails(item: Channel | Show): Promise<Details> {
+    const key = 'det.' + this.playlist.id + '.' + item.id;
+    const saved = await idbGet<{ at: number; d: Details }>(key).catch(() => undefined);
+    if (saved && saved.d && Date.now() - saved.at < DETAILS_TTL) return saved.d;
+    const t0 = Date.now();
+    mark('fiche : requête « ' + item.name + ' »');
+    const d = await this.loadDetails(item);
+    mark('fiche : réponse du serveur en ' + (Date.now() - t0) + ' ms');
+    void idbSet(key, { at: Date.now(), d });
+    return d;
   }
 
   /** Précharge la fiche et son grand visuel (survol / sélection d'une affiche). */

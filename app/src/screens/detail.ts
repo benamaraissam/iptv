@@ -115,7 +115,30 @@ export function detail(params: { id: string }): Screen {
     setBg(d.backdrop);
 
     clear(actions);
-    if (isShow) {
+    if (isShow && !d.seasons) {
+      // Épisodes pas encore reçus : le bouton est là tout de suite. Reprise directe depuis
+      // l'historique ; sinon le clic attend la liste des épisodes et lance le premier.
+      const show = item as Show;
+      const last = store.getHistory(pid).filter((x) => x.showId === show.id)[0];
+      const b = btn(last && last.season ? t('resume') + ' S' + last.season + ' E' + last.episode : t('play'), {
+        variant: 'primary',
+        icon: 'play',
+        autofocus: true,
+        onClick: () => {
+          if (last) return app.play(last);
+          b.classList.add('busy');
+          cat.details(show).then(
+            (full) => {
+              b.classList.remove('busy');
+              const first = allEpisodes(full)[0];
+              if (first && !destroyed) playEpisode(show, full, first);
+            },
+            () => b.classList.remove('busy'),
+          );
+        },
+      });
+      actions.appendChild(b);
+    } else if (isShow) {
       const show = item as Show;
       const eps = allEpisodes(d);
       const last = store.getHistory(pid).filter((x) => x.showId === show.id)[0];
@@ -242,7 +265,11 @@ export function detail(params: { id: string }): Screen {
 
   // Fiche déjà préchargée (survol / sélection) : affichage immédiat, sans attente.
   const known = cat.cachedDetails(item.id);
-  fill(known || { title: name, poster: posterUrl });
+  // Sinon : tout ce que le catalogue sait déjà (année, note, genre, résumé), sans attendre.
+  const fromCatalog: Details = isShow
+    ? { title: name, poster: posterUrl, year: item.year, rating: item.rating, genre: (item as Show).genre, plot: (item as Show).plot, backdrop: (item as Show).backdrop }
+    : { title: name, poster: posterUrl, year: item.year, rating: item.rating };
+  fill(known || fromCatalog);
   if (!known) cat.details(item).then(fill, () => undefined);
 
   return {

@@ -190,7 +190,9 @@ export function prefetchOnIntent(el: HTMLElement, item: import('../types').Chann
   let timer: number | undefined;
   const go = () => {
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => app.catalog && app.catalog.prefetch(item), lowPower ? 800 : 220);
+    // Assez tôt pour que la fiche soit prête au clic (le serveur met souvent 1 à 3 s),
+    // assez tard pour ne pas demander chaque affiche traversée en faisant défiler.
+    timer = window.setTimeout(() => app.catalog && app.catalog.prefetch(item), lowPower ? 350 : 220);
   };
   const cancel = () => window.clearTimeout(timer);
   el.addEventListener('mouseenter', go);
