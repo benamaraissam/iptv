@@ -155,8 +155,16 @@ export class Engine {
     // MPEG-TS sur un moteur qui ne le lit pas nativement (Chrome, Android) : mpegts.js
     // démultiplexe le flux en continu vers MSE.
     if (!forceHls && isTsUrl(url) && !v.canPlayType('video/mp2t') && !v.canPlayType('video/MP2T')) {
-      const mod: any = await import('mpegts.js');
-      const M = mod.default || mod;
+      let M: any = null;
+      try {
+        const mod: any = await import('mpegts.js');
+        M = mod.default || mod;
+      } catch (e) {
+        // Module introuvable (serveur de développement en cours de rechargement…) :
+        // on le signale comme une coupure, la reprise automatique réessaiera.
+        if (token === this.loadToken) this.fail('network', 'module mpegts.js : ' + String((e as Error).message || e));
+        return;
+      }
       if (token !== this.loadToken) return;
       if (M.isSupported()) {
         this.triedHls = true;
@@ -206,7 +214,13 @@ export class Engine {
     };
 
     if (isHls && !nativeHls) {
-      const { default: HlsCtor } = await import('hls.js');
+      let HlsCtor: typeof Hls;
+      try {
+        HlsCtor = (await import('hls.js')).default;
+      } catch (e) {
+        if (token === this.loadToken) this.fail('network', 'module hls.js : ' + String((e as Error).message || e));
+        return;
+      }
       if (token !== this.loadToken) return;
       if (HlsCtor.isSupported()) {
         const hls = new HlsCtor({
