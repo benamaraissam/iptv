@@ -128,7 +128,16 @@ export class Engine {
     this.video = v;
   }
 
+  /** Dernières erreurs de lecture (diagnostic : sp.engine.errors). */
+  errors: string[] = [];
+
   private fail(kind: PlaybackErrorKind, detail?: string): void {
+    const err = this.video.error;
+    // Le message du décodeur (Chrome : PIPELINE_ERROR_DECODE, CHUNK_DEMUXER_ERROR…) dit
+    // précisément ce qui n'est pas lisible : on l'ajoute au détail.
+    if (err && err.message && (!detail || detail.indexOf(err.message) === -1)) detail = (detail ? detail + ' — ' : '') + 'media ' + err.code + ': ' + err.message;
+    this.errors.push(new Date().toISOString().slice(11, 19) + ' ' + kind + ' [' + (this.hls ? 'hls.js' : this.mpegts ? 'mpegts.js' : 'natif') + '] ' + (this.currentUrl || '') + ' — ' + (detail || ''));
+    if (this.errors.length > 12) this.errors.shift();
     if (this.currentUrl) setHealth(this.currentUrl, 'down');
     this.onError(kind, detail);
   }
